@@ -5,9 +5,13 @@ import static org.bytedeco.opencv.global.opencv_imgcodecs.IMREAD_GRAYSCALE;
 import static org.bytedeco.opencv.global.opencv_imgcodecs.imread;
 
 import java.io.File;
+import java.io.FilenameFilter;
 import java.nio.IntBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
+import java.util.HashSet;
 
 import org.bytedeco.opencv.opencv_core.Mat;
 import org.bytedeco.opencv.opencv_core.MatVector;
@@ -21,7 +25,7 @@ import org.bytedeco.opencv.opencv_face.LBPHFaceRecognizer;
  * 
  * https://docs.opencv.org/4.x/d4/da8/group__imgcodecs.html
  */
-public class CreateFaceRecognizer {
+public class FaceRecognizerTrainer {
     
     public static void main(String[] args) {
         // if (args.length < 2) {
@@ -58,9 +62,11 @@ public class CreateFaceRecognizer {
         List<Integer> labelList = new ArrayList<>();
         parseTrainingFaces(trainingDir.getAbsolutePath(), imgList, labelList);
         FaceRecognizer faceRecognizer = createTrainModel(imgList, labelList);
-        faceRecognizer.write(
+        File saveModelFile = new File(
             saveModelDir.getAbsolutePath() + "/face-recognizer.xml"
         );
+        saveModelFile.delete();
+        faceRecognizer.write(saveModelFile.getAbsolutePath());
     }
 
     /**
@@ -74,9 +80,9 @@ public class CreateFaceRecognizer {
      * corresponds to the label represented by <code>labelList.get(k)</code>.
      * <br></br>
      * 
-     * Note that all files in the training subdirectories will be parsed
-     * indiscriminately, regardless of whether it is a valid image or not.
-     * <br></br>
+     * Only images with a supported file extension (which should indicate its
+     * format) will be parsed. See the class Javadoc for details on supported
+     * image formats. <br></br>
      * 
      * Required training directory structure:
      * 
@@ -91,6 +97,8 @@ public class CreateFaceRecognizer {
      * ...
      * </code> </pre>
      * 
+     * @see #CreateFaceRecognizer
+     * 
      * @param trainingPath Path of the directory to read images from.
      * @param imgList List to store image files in, typically empty.
      * @param labelList List to store corresponding lbales in, typically empty.
@@ -99,7 +107,7 @@ public class CreateFaceRecognizer {
      *                                  cannot be accessed.
      * @throws RuntimeException If no valid images are found.
      */
-    private static void parseTrainingFaces(
+    public static void parseTrainingFaces(
         String trainingPath,
         List<File> imgList,
         List<Integer> labelList
@@ -127,12 +135,31 @@ public class CreateFaceRecognizer {
         }
         imgList.clear();
         labelList.clear();
+        // See method Javadoc for info about accepted formats
+        Set<String> acceptedFormats = new HashSet<String>(
+            Arrays.asList(
+                "bmp", "dib", "jpeg", "jpg", "jpe", "jp2", "png", "webp",
+                "avif", "pbm", "pgm", "ppm", "pxm", "pnm", "pfm", "sr", "ras",
+                "tiff", "tif", "exr", "hdr", "pic"
+            )
+        );
+        FilenameFilter imgOnlyFilter = new FilenameFilter() {
+            public boolean accept(File file, String name) {
+                String nameLower = name.toLowerCase();
+                int extSepIdx = nameLower.lastIndexOf('.');
+                if (extSepIdx == -1) {
+                    return false;
+                }
+                String fileSuffix = nameLower.substring(extSepIdx + 1);
+                return acceptedFormats.contains(fileSuffix);
+            }
+        };
         int label = 0, readImgs = 0;
         for (File subDir: rootDir.listFiles()) {
             if (!subDir.isDirectory() || subDir.listFiles().length == 0) {
                 continue;
             }
-            for (File img: subDir.listFiles()) {
+            for (File img: subDir.listFiles(imgOnlyFilter)) {
                 imgList.add(img);
                 labelList.add(label);
                 ++readImgs;
@@ -140,7 +167,7 @@ public class CreateFaceRecognizer {
             ++label;
         }
         if (readImgs == 0) {
-            throw new RuntimeException("No training images found");
+            throw new RuntimeException("No valid training images to parse");
         }
     }
 
@@ -160,19 +187,20 @@ public class CreateFaceRecognizer {
      * @throws NullPointerException If any arguments are null.
      * @throws IllegalArgumentException If the image and label lists are
      *                                  different in size.
+     * @throws RuntimeException If no valid images are passed in.
      */
-    private static FaceRecognizer createTrainModel(
+    public static FaceRecognizer createTrainModel(
         List<File> imgList,
         List<Integer> labelList
     ) {
         if (imgList == null) {
             throw new NullPointerException(
-                "Image list is null"
+                "Image list is null or empty"
             );
         }
         if (labelList == null) {
             throw new NullPointerException(
-                "Label list is null"
+                "Label list is null or empty"
             );
         }
         if (imgList.size() != labelList.size()) {
@@ -191,8 +219,9 @@ public class CreateFaceRecognizer {
             List<Mat> imgMatList = new ArrayList<>();
             for (int j = 0; j < imgBatch.size(); ++j) {
                 File imgFile = imgBatch.get(j);
+                String imgFileAbsPath = imgFile.getAbsolutePath();
                 Mat imgMat = imread(
-                    imgFile.getAbsolutePath(),
+                    imgFileAbsPath,
                     IMREAD_GRAYSCALE
                 );
                 if (imgMat.data() == null ||
@@ -200,14 +229,17 @@ public class CreateFaceRecognizer {
                         imgMat.cols() <= 0
                 ) {
                     System.out.println(
-                        "Invalid/unsupported file: "
-                        + imgFile.getAbsolutePath()
+                        "Invalid/unsupported file: " + imgFileAbsPath
                     );
                     imgMat.deallocate();
                     continue;
                 }
+                System.out.println("Processing: " + imgFileAbsPath);
                 imgMatList.add(imgMat);
                 ++totalImgs;
+            }
+            if (imgMatList.size() == 0) {
+                continue;
             }
             // Seems like the size of the image MatVector needs to exactly
             // match the number of Mats inserted, otherwise C++ throws this:
@@ -215,16 +247,25 @@ public class CreateFaceRecognizer {
             MatVector imgVec = new MatVector(imgMatList.size());
             Mat labelsMat = new Mat(imgMatList.size(), 1, CV_32SC1);
             IntBuffer labelBuf = labelsMat.createBuffer();
-            for (int j = 0; j < imgMatList.size(); ++j) {
-                imgVec.put(j, imgMatList.get(j));
-                labelBuf.put(j, j);
+            for (int k = 0; k < imgMatList.size(); ++k) {
+                imgVec.put(k, imgMatList.get(k));
+                labelBuf.put(k, labelList.get(k));
             }
-            faceRecognizer.train(imgVec, labelsMat);
+            System.out.println(
+                "Training model using " + imgVec.size() + " samples"
+            );
+            // Don't discard previous data learned by using train()
+            faceRecognizer.update(imgVec, labelsMat);
             imgVec.deallocate();
             labelsMat.deallocate();
         }
+        if (totalImgs == 0) {
+            throw new RuntimeException(
+                "No valid training images to feed model with"
+            );
+        }
         System.out.println(
-            "Successfully trained model using " + totalImgs + " images"
+            "Successfully trained model using " + totalImgs + " total samples"
         );
         return faceRecognizer;
     }
