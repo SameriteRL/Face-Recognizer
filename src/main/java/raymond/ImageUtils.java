@@ -31,12 +31,11 @@ import com.drew.metadata.exif.ExifIFD0Directory;
 public class ImageUtils {
 
     /**
-     * Creates and returns a new square version of the given Mat. The original
-     * Mat is not modified. <br></br>
+     * Creates and returns a new square version of the given Mat. <br></br>
      * 
-     * The original Mat is not deallocated as a result of the resize; it is the
-     * responsibility of the caller to deallocate it afterwards, if they would
-     * like.
+     * The original Mat is not modified or deallocated as a result of the
+     * resize; it is the responsibility of the caller to deallocate it
+     * afterwards if they wish to.
      * 
      * @param src Mat to be resized.
      * @param length Desired length of the resized Mat.
@@ -151,6 +150,7 @@ public class ImageUtils {
      * @param img Image to draw onto.
      * @param frameDataList List of FrameData objects describing the position
      *                      and dimensions of each frame to be drawn.
+     * @throws NullPointerException If any arguments are null.
      */
     public static void drawFrames(
         BufferedImage img,
@@ -172,8 +172,10 @@ public class ImageUtils {
      * @param img Image to draw onto.
      * @param frameDataList List of FrameData objects describing the position
      *                      and dimensions of each frame to be drawn.
-     * @param labelLegend
+     * @param labelLegend Map that maps each unique label to a corresponding
+     *                    string name.
      * @param debug Enable or disable debug mode.
+     * @throws NullPointerException If any arguments are null.
      */
     public static void drawFrames(
         BufferedImage img,
@@ -181,6 +183,15 @@ public class ImageUtils {
         Map<Integer, String> labelLegend,
         boolean debug
     ) {
+        if (img == null) {
+            throw new NullPointerException("Image is null");
+        }
+        if (frameDataList == null) {
+            throw new NullPointerException("Frame data list is null");
+        }
+        if (labelLegend == null) {
+            throw new NullPointerException("Label legend is null");
+        }
         Graphics2D g2d = img.createGraphics();
         g2d.setColor(Color.RED);
         // Stroke and font size proportional to length of img's smallest side
