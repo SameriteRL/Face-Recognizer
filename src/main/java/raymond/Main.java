@@ -3,10 +3,6 @@ package raymond;
 import static org.bytedeco.opencv.global.opencv_imgcodecs.IMREAD_GRAYSCALE;
 import static org.bytedeco.opencv.global.opencv_imgcodecs.imread;
 
-import java.awt.BasicStroke;
-import java.awt.Color;
-import java.awt.Font;
-import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
@@ -21,40 +17,76 @@ import org.bytedeco.javacpp.DoublePointer;
 import org.bytedeco.javacpp.IntPointer;
 import org.bytedeco.opencv.opencv_core.Mat;
 import org.bytedeco.opencv.opencv_face.FaceRecognizer;
-import org.bytedeco.opencv.opencv_face.LBPHFaceRecognizer;
+import org.bytedeco.opencv.opencv_face.FisherFaceRecognizer;
 
 public class Main {
 
     public static void main(String[] args) throws Exception {
-        final String testImgPath = "test-faces/eclipse.jpeg";
+        // Configuration
+        final String testImgPath = "test-images/eclipse.jpg";
+        final String trainingDirPath = "training-faces";
+        final String modelDirPath = "models";
+
+        // File validation phase
         File testImgFile = new File(testImgPath);
         if (!testImgFile.exists()) {
             throw new IllegalArgumentException(
                 "Test image path is invalid"
             );
         }
+        File trainingDirFile = new File(trainingDirPath);
+        if (!trainingDirFile.isDirectory()) {
+            throw new IllegalArgumentException(
+                "Training directory path is not a directory"
+            );
+        }
         BufferedImage testBufImg = ImageIO.read(testImgFile);
         if (testBufImg == null) {
             throw new IOException("Test image could not be read");
         }
+        String testImgStem = StringUtils.getStem(testImgFile.getAbsolutePath());
+        String testImgFormat = StringUtils.getExtension(testImgFile.getName());
+
+        // Training phase
+        List<File> imgList = new ArrayList<>();
+        List<Integer> labelList = new ArrayList<>();
+        Map<Integer, String> labelLegend = FaceTrainer.parseTrainingFaces(
+            trainingDirFile.getAbsolutePath(),
+            imgList,
+            labelList
+        );
+        FaceRecognizer faceRecognizer = FaceTrainer.createTrainModel(
+            imgList,
+            labelList
+        );
+        File saveModelFile = new File(
+            modelDirPath + "/face-recognizer.xml"
+        );
+        // Deletes any old model by the same name just in case
+        saveModelFile.delete();
+        faceRecognizer.write(saveModelFile.getAbsolutePath());
+
+        // Testing phase
         List<FrameData> roiList = FaceDetector.detectFaces(
             testImgPath,
             "models/haarcascade_frontalface_alt.xml"
         );
-        String testImgName = testImgFile.getCanonicalPath().substring(
-            0, testImgFile.getCanonicalPath().lastIndexOf('.')
-        );
-        String testImgFormat = testImgFile.getName().substring(
-            testImgFile.getName().lastIndexOf('.') + 1
-        );
         List<FrameData> finalList = identifyFaces(
-            testBufImg, testImgFormat, roiList, "models/face-recognizer.xml"
+            testBufImg,
+            testImgFormat,
+            roiList,
+            "models/face-recognizer.xml",
+            true
         );
-        drawFrames(testBufImg, finalList, true);
+        ImageUtils.drawFrames(testBufImg, finalList, labelLegend, true);
         File outImgFile = new File(
-            String.format("%s-out.%s", testImgName, testImgFormat)
+            String.format("%s-out.%s", testImgStem, testImgFormat)
         );
         ImageIO.write(testBufImg, testImgFormat, outImgFile);
+        System.out.println(
+            "Recognition result image written to: "
+            + outImgFile.getAbsolutePath()
+        );
     }
 
     /**
@@ -82,7 +114,8 @@ public class Main {
             testImg,
             testImgFormat,
             roiList,
-            faceRecognizerModelPath
+            faceRecognizerModelPath,
+            false
         );
     }
 
@@ -94,7 +127,7 @@ public class Main {
      * original list with all ROIs, where each ROI is modified to include the
      * predicted label and confidence score. <br></br>
      * 
-     * See {@link #identifyFaces(BufferedImage, String, List, String)}
+     * See {@link #identifyFaces(BufferedImage, String, List, String)}.
      * 
      * @param testImg Test image to predict labels within.
      * @param testImgFormat Format of the test image (e.g. PNG, JPEG).
@@ -103,7 +136,10 @@ public class Main {
      * @param debug Enable or disable debug mode.
      * @return A list of FrameData objects, each one representing the unique
      *         best match ROI for a label.
+     * @throws NullPointerException If any arguments are null.
      * @throws IOException For general I/O errors.
+     * @throws IllegalArgumentException If the FaceRecognizer model path is
+     *                                  invalid.
      */
     private static List<FrameData> identifyFaces(
         BufferedImage testImg,
@@ -112,22 +148,30 @@ public class Main {
         String faceRecognizerModelPath,
         boolean debug
     ) throws IOException {
-        if (roiList == null || roiList.isEmpty()) {
-            throw new IllegalArgumentException(
-                "ROI list is null or empty"
-            );
+        if (testImg == null) {
+            throw new NullPointerException("Test image is null");
         }
-        File faceRecognizerModelFile = new File(faceRecognizerModelPath);
+        if (testImgFormat == null) {
+            throw new NullPointerException("Test image format is null");
+        }
+        if (roiList == null) {
+            throw new NullPointerException("ROI list is null");
+        }
+        if (roiList.isEmpty()) {
+            throw new IllegalArgumentException("ROI list is empty");
+        }
+        if (faceRecognizerModelPath == null) {
+            throw new NullPointerException("Face recognizer model path is null");
+        }
         Map<Integer, FrameData> labelFrameData = new HashMap<>();
         Map<Integer, Double> labelConfidence = new HashMap<>();
-        FaceRecognizer faceRecognizer = LBPHFaceRecognizer.create();
+        FaceRecognizer faceRecognizer = FisherFaceRecognizer.create();
         try {
-            faceRecognizer.read(faceRecognizerModelFile.getAbsolutePath());
+            faceRecognizer.read(faceRecognizerModelPath);
         }
         catch (Exception e) {
             throw new IllegalArgumentException(
-                "Cannot read FaceRecognizer model: "
-                + faceRecognizerModelFile.getAbsolutePath()
+                "Cannot read FaceRecognizer model: " + faceRecognizerModelPath
             );
         }
         for (FrameData frameData: roiList) {
@@ -143,13 +187,15 @@ public class Main {
                 tempRoiFile.getAbsolutePath(),
                 IMREAD_GRAYSCALE
             );
+            Mat resizedImgMat = ImageUtils.squareMat(imgMat, 256);
+            imgMat.deallocate();
             tempRoiFile.delete();
             IntPointer labelPtr = new IntPointer(1);
             DoublePointer confidencePtr = new DoublePointer(1);
-            faceRecognizer.predict(imgMat, labelPtr, confidencePtr);
+            faceRecognizer.predict(resizedImgMat, labelPtr, confidencePtr);
             int label = labelPtr.get();
             double confidence = confidencePtr.get();
-            imgMat.deallocate();
+            resizedImgMat.deallocate();
             labelPtr.deallocate();
             confidencePtr.deallocate();
             if (label < 0) {
@@ -173,90 +219,5 @@ public class Main {
             identifiedFaces.add(frameData);
         }
         return identifiedFaces;
-    }
-
-    /**
-     * Draws a red rectangular frame onto the given image for each FrameData in
-     * the given list. The image is modified in-place. <br></br>
-     * 
-     * The X and Y coordinates marks the top left corner of each frame. The
-     * width corresponds to the frame's size along the positive X-axis, and the
-     * length corresponds to the size along the negative Y-axis.
-     * 
-     * @param img Image to draw onto.
-     * @param frameDataList List of FrameData objects describing the position
-     *                      and dimensions of each frame to be drawn.
-     */
-    private static void drawFrames(
-        BufferedImage img,
-        List<FrameData> frameDataList
-    ) {
-        drawFrames(img, frameDataList, false);
-    }
-
-    /**
-     * Underlying method with an extra parameter to enable or disable debugging
-     * mode. <br></br>
-     * 
-     * If <code>debug == true</code>, the label and confidence score associated
-     * with each frame is also drawn. <br></br>
-     * 
-     * See {@link #drawFrames(BufferedImage, List)}
-     * 
-     * @param img Image to draw onto.
-     * @param frameDataList List of FrameData objects describing the position
-     *                      and dimensions of each frame to be drawn.
-     * @param debug Enable or disable debug mode.
-     */
-    private static void drawFrames(
-        BufferedImage img,
-        List<FrameData> frameDataList,
-        boolean debug
-    ) {
-        Graphics2D g2d = img.createGraphics();
-        g2d.setColor(Color.RED);
-        // Stroke and font size proportional to length of img's smallest side
-        int length = (img.getWidth() < img.getHeight())
-            ? img.getWidth() : img.getHeight();
-        int rectStrokeSize = length / 300;
-        int fontSize = rectStrokeSize * 10;
-        // Dashed line length pattern proportional to stroke size
-        // float[] dash = {5, 3, 0.5f, 3};
-        // for (int i = 0; i < dash.length; ++i) {
-        //     dash[i] = dash[i] * rectStrokeSize;
-        // }
-        g2d.setStroke(
-            new BasicStroke(
-                rectStrokeSize,
-                BasicStroke.CAP_ROUND,
-                BasicStroke.JOIN_ROUND,
-                3f,
-                null, // dash,
-                0f
-            )
-        );
-        g2d.setFont(new Font("Arial", Font.PLAIN, fontSize));
-        for (FrameData frameData: frameDataList) {
-            // X and Y coords indicate top left of rectangle
-            g2d.drawRect(
-                frameData.xCoord,
-                frameData.yCoord,
-                frameData.width,
-                frameData.height
-            );
-            if (debug) {
-                // Labels are drawn directly above rectangle
-                g2d.drawString(
-                    String.format(
-                        "%d : %.3f",
-                        frameData.label,
-                        frameData.confidence
-                    ),
-                    frameData.xCoord,
-                    frameData.yCoord - fontSize / 2
-                );
-            }
-        }
-        g2d.dispose();
     }
 }
