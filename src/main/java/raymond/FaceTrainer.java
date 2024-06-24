@@ -76,8 +76,12 @@ public class FaceTrainer {
      * Populates a list of image files and a list of labels by reading a
      * directory of training face images. Each subdirectory represents a
      * different subject, and labels are automatically assigned to each subject
-     * starting at the integer 0 and ascending. Returns a map of labels and
-     * their corresponding subject names. <br></br>
+     * starting at the integer 0 and ascending. Returns a map of parsed labels
+     * and their corresponding subject names. <br></br>
+     * 
+     * At least two subjects are required to perform a linear dimension
+     * analysis (as required by the Fisherfaces and Eigenfaces models).
+     * <br></br>
      * 
      * The two lists will be cleared before populating and will end up parallel
      * such that the image represented by <code>imgList.get(k)</code>
@@ -106,7 +110,8 @@ public class FaceTrainer {
      * @throws NullPointerException If any arguments are null.
      * @throws IllegalArgumentException If the training path is invalid or
      *                                  cannot be accessed.
-     * @throws RuntimeException If no valid images are found.
+     * @throws RuntimeException If no valid images are found or if less than
+     *                          two subjects are parsed.
      */
     public static Map<Integer, String> parseTrainingFaces(
         String trainingPath,
@@ -158,11 +163,13 @@ public class FaceTrainer {
         Map<Integer, String> labelLegend = new HashMap<>();
         int label = 0, readImgs = 0;
         for (File subDir: rootDir.listFiles()) {
-            if (!subDir.isDirectory() || subDir.listFiles().length == 0) {
+            String subDirName = subDir.getName();
+            File[] imgFileList = subDir.listFiles(imgOnlyFilter);
+            if (!subDir.isDirectory() || imgFileList.length == 0) {
                 continue;
             }
-            labelLegend.putIfAbsent(label, subDir.getName());
-            for (File img: subDir.listFiles(imgOnlyFilter)) {
+            labelLegend.put(label, subDirName);
+            for (File img: imgFileList) {
                 imgList.add(img);
                 labelList.add(label);
                 ++readImgs;
@@ -172,9 +179,24 @@ public class FaceTrainer {
         if (readImgs == 0) {
             throw new RuntimeException("No valid training images to parse");
         }
+        if (labelLegend.size() < 2) {
+            throw new RuntimeException(
+                "At least two subjects are required to perform a linear " +
+                "dimension analysis (LDA)"
+            );
+        }
         System.out.println(
             "Successfully parsed " + readImgs + " training samples"
         );
+        for (int parsedLabel: labelLegend.keySet()) {
+            System.out.println(
+                String.format(
+                    "Label %d: %s",
+                    parsedLabel,
+                    labelLegend.get(parsedLabel)
+                )
+            );
+        }
         return labelLegend;
     }
 
@@ -272,7 +294,7 @@ public class FaceTrainer {
                 resizedImgMat.deallocate();
                 continue;
             }
-            System.out.println("Processing: " + imgFileAbsPath);
+            System.out.println("Training: " + imgFileAbsPath);
             // Write gray square images to files for manual inspection
             if (debug) {
                 String debugImgPath = String.format(

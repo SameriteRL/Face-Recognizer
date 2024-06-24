@@ -5,6 +5,7 @@ face-recognizer.xml
 debug
 test-faces
 training-faces
+output
 
 ######################################################################
 # Build Tools

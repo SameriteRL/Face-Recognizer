@@ -23,9 +23,10 @@ public class Main {
 
     public static void main(String[] args) throws Exception {
         // Configuration
-        final String testImgPath = "test-images/eclipse.jpg";
-        final String trainingDirPath = "training-faces";
-        final String modelDirPath = "models";
+        final String testImgPath = "./test-faces/eclipse.jpg";
+        final String trainingDirPath = "./training-faces";
+        final String modelDirPath = "./models";
+        final String outputDirPath = "./output";
 
         // File validation phase
         File testImgFile = new File(testImgPath);
@@ -37,14 +38,23 @@ public class Main {
         File trainingDirFile = new File(trainingDirPath);
         if (!trainingDirFile.isDirectory()) {
             throw new IllegalArgumentException(
-                "Training directory path is not a directory"
+                "Training directory path does not exist or is not a directory"
             );
         }
+        File modelDirFile = new File(modelDirPath);
+        if (!modelDirFile.exists()) {
+            throw new IllegalArgumentException(
+                "Model directory does not exist or is not a directory"
+            );
+        }
+        // Ensures output directory exists before writing to it
+        File outputDirFile = new File(outputDirPath);
+        outputDirFile.mkdir();
         BufferedImage testBufImg = ImageIO.read(testImgFile);
         if (testBufImg == null) {
             throw new IOException("Test image could not be read");
         }
-        String testImgStem = StringUtils.getStem(testImgFile.getAbsolutePath());
+        String testImgStem = StringUtils.getStem(testImgFile.getName());
         String testImgFormat = StringUtils.getExtension(testImgFile.getName());
 
         // Training phase
@@ -55,14 +65,16 @@ public class Main {
             imgList,
             labelList
         );
+        // The model could be passed directly into training phase but it's
+        // written to a file first for modularity and reusability.
         FaceRecognizer faceRecognizer = FaceTrainer.createTrainModel(
             imgList,
             labelList
         );
         File saveModelFile = new File(
-            modelDirPath + "/face-recognizer.xml"
+            modelDirFile.getAbsolutePath() + "/face-recognizer.xml"
         );
-        // Deletes any old model by the same name just in case
+        // Deletes any old model with the same name just in case
         saveModelFile.delete();
         faceRecognizer.write(saveModelFile.getAbsolutePath());
 
@@ -71,16 +83,20 @@ public class Main {
             testImgPath,
             "models/haarcascade_frontalface_alt.xml"
         );
-        List<FrameData> finalList = identifyFaces(
+        List<FrameData> finalList = predictFaces(
             testBufImg,
             testImgFormat,
             roiList,
-            "models/face-recognizer.xml",
-            true
+            "models/face-recognizer.xml"
         );
-        ImageUtils.drawFrames(testBufImg, finalList, labelLegend, true);
+        ImageUtils.drawFrames(testBufImg, finalList, labelLegend);
         File outImgFile = new File(
-            String.format("%s-out.%s", testImgStem, testImgFormat)
+            String.format(
+                "%s/%s-out.%s",
+                outputDirFile.getAbsolutePath(),
+                testImgStem,
+                testImgFormat
+            )
         );
         ImageIO.write(testBufImg, testImgFormat, outImgFile);
         System.out.println(
@@ -91,7 +107,7 @@ public class Main {
 
     /**
      * Uses the given FaceRecognizer model to evaluate each ROI in the given
-     * FrameData list, determining which label each ROI resembles the most as
+     * FrameData list, predicting which label each ROI resembles the most as
      * well as a confidence score for each. For each unique label, the ROI with
      * the highest confidence score is saved back into a new FrameData list,
      * which is returned after evaluating all ROIs. <br></br>
@@ -104,13 +120,13 @@ public class Main {
      *         best match ROI for a label.
      * @throws IOException For general I/O errors.
      */
-    private static List<FrameData> identifyFaces(
+    private static List<FrameData> predictFaces(
         BufferedImage testImg,
         String testImgFormat,
         List<FrameData> roiList,
         String faceRecognizerModelPath
     ) throws IOException {
-        return identifyFaces(
+        return predictFaces(
             testImg,
             testImgFormat,
             roiList,
@@ -127,7 +143,7 @@ public class Main {
      * original list with all ROIs, where each ROI is modified to include the
      * predicted label and confidence score. <br></br>
      * 
-     * See {@link #identifyFaces(BufferedImage, String, List, String)}.
+     * See {@link #predictFaces(BufferedImage, String, List, String)}.
      * 
      * @param testImg Test image to predict labels within.
      * @param testImgFormat Format of the test image (e.g. PNG, JPEG).
@@ -141,7 +157,7 @@ public class Main {
      * @throws IllegalArgumentException If the FaceRecognizer model path is
      *                                  invalid.
      */
-    private static List<FrameData> identifyFaces(
+    private static List<FrameData> predictFaces(
         BufferedImage testImg,
         String testImgFormat,
         List<FrameData> roiList,
@@ -174,6 +190,7 @@ public class Main {
                 "Cannot read FaceRecognizer model: " + faceRecognizerModelPath
             );
         }
+        System.out.println("Predicting faces");
         for (FrameData frameData: roiList) {
             BufferedImage roiImg = testImg.getSubimage(
                 frameData.xCoord,
@@ -181,8 +198,10 @@ public class Main {
                 frameData.width,
                 frameData.height
             );
+            // Model cannot read BufferedImage directly so it is saved to file
             File tempRoiFile = File.createTempFile("temp-roi-img", null);
             ImageIO.write(roiImg, testImgFormat, tempRoiFile);
+            // Fisherfaces/Eigenfaces require identically-sized gray images
             Mat imgMat = imread(
                 tempRoiFile.getAbsolutePath(),
                 IMREAD_GRAYSCALE
@@ -198,6 +217,7 @@ public class Main {
             resizedImgMat.deallocate();
             labelPtr.deallocate();
             confidencePtr.deallocate();
+            // Ignore unknown faces for models trained with a threshold
             if (label < 0) {
                 continue;
             }
@@ -211,9 +231,11 @@ public class Main {
                 labelFrameData.put(label, frameData);
             }
         }
+        // Returns all ROIs instead of the best ones
         if (debug) {
             return roiList;
         }
+        // Returns a list of only the best ROI per label
         List<FrameData> identifiedFaces = new ArrayList<>();
         for (FrameData frameData: labelFrameData.values()) {
             identifiedFaces.add(frameData);

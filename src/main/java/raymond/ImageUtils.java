@@ -164,8 +164,8 @@ public class ImageUtils {
      * Underlying method with an extra parameter to enable or disable debugging
      * mode. <br></br>
      * 
-     * If <code>debug == true</code>, the label and confidence score associated
-     * with each frame is also drawn. <br></br>
+     * If <code>debug == true</code>, the confidence score associated with each
+     * frame is also drawn. <br></br>
      * 
      * See {@link #drawFrames(BufferedImage, List)}.
      * 
@@ -199,18 +199,13 @@ public class ImageUtils {
             ? img.getWidth() : img.getHeight();
         int rectStrokeSize = length / 300;
         int fontSize = rectStrokeSize * 10;
-        // Dashed line length pattern proportional to stroke size
-        // float[] dash = {5, 3, 0.5f, 3};
-        // for (int i = 0; i < dash.length; ++i) {
-        //     dash[i] = dash[i] * rectStrokeSize;
-        // }
         g2d.setStroke(
             new BasicStroke(
                 rectStrokeSize,
                 BasicStroke.CAP_ROUND,
                 BasicStroke.JOIN_ROUND,
                 3f,
-                null, // dash,
+                null,
                 0f
             )
         );
@@ -223,14 +218,21 @@ public class ImageUtils {
                 frameData.width,
                 frameData.height
             );
+            // Labels are drawn directly above rectangle
             if (debug) {
-                // Labels are drawn directly above rectangle
                 g2d.drawString(
                     String.format(
                         "%s : %.3f",
                         labelLegend.get(frameData.label),
                         frameData.confidence
                     ),
+                    frameData.xCoord,
+                    frameData.yCoord - fontSize / 2
+                );
+            }
+            else {
+                g2d.drawString(
+                    labelLegend.get(frameData.label),
                     frameData.xCoord,
                     frameData.yCoord - fontSize / 2
                 );
