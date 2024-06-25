@@ -2,7 +2,7 @@
 ### What is this?
 A fun program that can be trained with images of two or more persons, then pinpoint and frame those faces on subsequent test images.
 
-## Project Breakdown And Usage
+## Project Breakdown And Usage (NEEDS UPDATING)
 ### Dependencies
 This project uses [Maven 3.x](https://maven.apache.org/download.cgi) for dependency management, so make sure that's installed before doing anything else. All dependencies are listed in the repository's `pom.xml`, and imports should be automatically resolved as long as Maven is working.
 
