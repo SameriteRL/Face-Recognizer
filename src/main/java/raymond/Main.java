@@ -23,10 +23,12 @@ public class Main {
 
     public static void main(String[] args) throws Exception {
         // Configuration
-        final String testImgPath = "./test-faces/eclipse.jpg";
+        final String testImgPath = "./test-faces/big-ray.png";
         final String trainingDirPath = "./training-faces";
         final String modelDirPath = "./models";
         final String outputDirPath = "./output";
+        final String faceDetectorPath = "./models/yunet_detection_2023mar.onnx";
+        final String faceRecognizerPath = "./models/sface_recognition_2021dec.onnx";
 
         // File validation phase
         File testImgFile = new File(testImgPath);
@@ -79,17 +81,21 @@ public class Main {
         faceRecognizer.write(saveModelFile.getAbsolutePath());
 
         // Testing phase
-        List<FrameData> roiList = FaceDetector.detectFaces(
-            testImgPath,
-            "models/haarcascade_frontalface_alt.xml"
-        );
+        List<FrameData> roiList =
+            FaceDetector.detectFaces(testImgPath, faceDetectorPath);
         List<FrameData> finalList = predictFaces(
             testBufImg,
             testImgFormat,
             roiList,
-            "models/face-recognizer.xml"
+            "models/face-recognizer.xml",
+            true
         );
-        ImageUtils.drawFrames(testBufImg, finalList, labelLegend);
+        ImageUtils.drawFrames(
+            testBufImg,
+            finalList,
+            labelLegend,
+            true
+        );
         File outImgFile = new File(
             String.format(
                 "%s/%s-out.%s",
@@ -222,7 +228,7 @@ public class Main {
                 continue;
             }
             frameData.label = label;
-            frameData.confidence = confidence;
+            frameData.predictScore = confidence;
             // Lower confidence score is better
             if (!labelConfidence.containsKey(label) ||
                     confidence < labelConfidence.get(label)

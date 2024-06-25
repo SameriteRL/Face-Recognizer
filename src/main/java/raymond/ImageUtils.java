@@ -224,7 +224,7 @@ public class ImageUtils {
                     String.format(
                         "%s : %.3f",
                         labelLegend.get(frameData.label),
-                        frameData.confidence
+                        frameData.predictScore
                     ),
                     frameData.xCoord,
                     frameData.yCoord - fontSize / 2

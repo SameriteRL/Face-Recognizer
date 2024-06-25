@@ -9,85 +9,54 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.bytedeco.opencv.opencv_core.Mat;
-import org.bytedeco.opencv.opencv_core.Rect;
-import org.bytedeco.opencv.opencv_core.RectVector;
-import org.bytedeco.opencv.opencv_objdetect.CascadeClassifier;
+import org.bytedeco.opencv.opencv_core.Size;
+import org.bytedeco.opencv.opencv_objdetect.FaceDetectorYN;
 
 public class FaceDetector {
 
     /**
      * Performs facial detection on an image and returns a list of FrameData
-     * objects, where each one represents a region of interest (ROI). Returns
-     * an empty list if no ROIs are detected. <br></br>
-     * 
-     * Uses the Default Haar Cascade Frontal-Face Model to detect faces.
+     * objects representing regions of interest (ROIs). Returns an empty list
+     * if no ROIs are detected. <br></br>
      * 
      * @param imgPath Path of the image to extract ROIs from.
-     * @return A list of FrameData objects, each one representing a ROI.
-     * @throws NullPointerException If the image path is null.
-     * @throws IOException If the image path is invalid, or for general I/O
-     *                     errors.
-     */
-    public static List<FrameData> detectFaces(String imgPath) throws IOException {
-        return detectFaces(
-            imgPath,
-            "models/haarcascade_frontalface_default.xml"
-        );
-    }
-
-    /**
-     * Underlying method with an extra parameter to specify the cascade
-     * classifier model to use for face detection. <br></br>
-     * 
-     * See {@link #detectFaces(String)}
-     * 
-     * @param imgPath Path of the image to extract ROIs from.
-     * @param cascadeModelPath Path of the cascade model to use.
-     * @return A list of FrameData objects, each one representing a ROI.
+     * @param dnnModelPath Path of the DNN model to use.
+     * @return A list of FrameData objects representing ROIs.
      * @throws NullPointerException If any arguments are null.
      * @throws IOException If the image or model paths are invalid, or for
      *                     general I/O errors.
      */
     public static List<FrameData> detectFaces(
         String imgPath,
-        String cascadeModelPath
+        String dnnModelPath
     ) throws IOException {
         if (imgPath == null) {
             throw new NullPointerException("Image path is null");
         }
-        if (cascadeModelPath == null) {
-            throw new NullPointerException("Cascade model path is null");
-        }
-        File cascadeModelFile = new File(cascadeModelPath);
+        File dnnModelFile = new File(dnnModelPath);
         BufferedImage bufImg = ImageUtils.createBufferedImage(imgPath);
         if (bufImg == null) {
             throw new IOException("Image path is invalid or cannot be read");
         }
-        if (!cascadeModelFile.exists() || cascadeModelFile.isDirectory()) {
-            throw new IOException("Cascade model path is invalid");
+        if (!dnnModelFile.exists() || dnnModelFile.isDirectory()) {
+            throw new IOException("Face detector model path is invalid");
         }
         // Face detection
         Mat imgMat = imread(imgPath);
-        RectVector detectedFaces = new RectVector();
-        try (CascadeClassifier detector =
-                new CascadeClassifier(cascadeModelPath)
+        Mat facesMat = new Mat();
+        try (FaceDetectorYN detector = FaceDetectorYN.create(
+                dnnModelPath, "", new Size(imgMat.cols(), imgMat.rows())
+            )
         ) {
-            detector.detectMultiScale(imgMat, detectedFaces);
+            detector.detect(imgMat, facesMat);
         }
         catch (Exception e) {
-            throw new RuntimeException("Cascade model is invalid");
+            e.printStackTrace();
+            throw new RuntimeException("Face detector model is invalid");
         }
         List<FrameData> roiData = new ArrayList<>();
-        for (int i = 0; i < detectedFaces.size(); ++i) {
-            Rect face = detectedFaces.get(i);
-            roiData.add(
-                new FrameData(
-                    face.x(),
-                    face.y(),
-                    face.width(),
-                    face.height()
-                )
-            );
+        for (int i = 0; i < facesMat.rows(); ++i) {
+            roiData.add(new FrameData(i, facesMat));
         }
         return roiData;
     }

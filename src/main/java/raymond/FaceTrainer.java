@@ -230,10 +230,10 @@ public class FaceTrainer {
      * mode. <br></br>
      * 
      * If <code>debug == true</code>, all grayscale sqaure images converted
-     * from training images are written to a debug directory where they can be
-     * manually inspected. These are the images that the FaceRecognizer model
-     * is trained with. If a debug directory already exists, it will be deleted
-     * and remade before new images are written. <br></br>
+     * from training images will be written to a debug directory where they can
+     * be manually inspected. These are the images that the FaceRecognizer
+     * model is trained with. If a debug directory already exists, it will be
+     * deleted and remade before new images are written. <br></br>
      * 
      * See {@link #createTrainModel(List, List)}.
      * 
@@ -268,7 +268,7 @@ public class FaceTrainer {
         }
         File debugImgDir = null;
         if (debug) {
-            debugImgDir = new File("debug");
+            debugImgDir = new File("./training-debug");
             debugImgDir.delete();
             debugImgDir.mkdir();
         }
