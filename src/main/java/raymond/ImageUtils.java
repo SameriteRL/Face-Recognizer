@@ -11,12 +11,13 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 
 import javax.imageio.ImageIO;
 
 import org.bytedeco.opencv.opencv_core.Mat;
+import org.bytedeco.opencv.opencv_core.Rect;
 import org.bytedeco.opencv.opencv_core.Size;
+import org.bytedeco.opencv.opencv_objdetect.FaceRecognizerSF;
 
 import com.drew.imaging.ImageMetadataReader;
 import com.drew.imaging.ImageProcessingException;
@@ -31,11 +32,96 @@ import com.drew.metadata.exif.ExifIFD0Directory;
 public class ImageUtils {
 
     /**
+     * Gets the feature Mat of an image. Requires face box coordinates and
+     * dimensions, typically determined using the YuNet face detection model.
+     * <br></br>
+     * 
+     * The original Mat is not modified or deallocated as a result of the
+     * operation; it is the responsibility of the caller to deallocate it
+     * afterwards if they wish.
+     * 
+     * @param fr SFace face recognizer model.
+     * @param src Source image to get a feature Mat from.
+     * @param fBox Face box coordinates and dimensions, which should be one row
+     *             of a Mat.
+     * @return The feature Mat of the image.
+     */
+    public static Mat getFeatureMat(FaceRecognizerSF fr, Mat src, Mat fBox) {
+        Mat alignedMat = new Mat(), featureMat = new Mat();
+        fr.alignCrop(src, fBox, alignedMat);
+        fr.feature(alignedMat, featureMat);
+        alignedMat.deallocate();
+        // Don't know why this has to be cloned, it just does
+        Mat featureMatClone = featureMat.clone();
+        featureMat.deallocate();
+        return featureMatClone;
+    }
+
+    /**
+     * Performs a "true" crop on a Mat given a FrameData object representing a
+     * region of interest. The returned cropped Mat carries a copy of the
+     * source Mat's data. <br></br>
+     * 
+     * The original Mat is not modified or deallocated as a result of the
+     * operation; it is the responsibility of the caller to deallocate it
+     * afterwards if they wish.
+     * 
+     * @param src Source image to create a cropped version from.
+     * @param fd
+     * @return
+     */
+    public static Mat trueCropMat(Mat src, FrameData fd) {
+        Rect roiDims = new Rect(fd.xCoord, fd.yCoord, fd.width, fd.height);
+        Mat croppedMatCopy = new Mat();
+        // The data is shared rather than copied
+        try (Mat croppedMat = new Mat(src, roiDims)) {
+            // Now the data is copied
+            croppedMat.copyTo(croppedMatCopy);
+        }
+        roiDims.deallocate();
+        return croppedMatCopy;
+    }
+
+    /**
+     * Performs a "true" crop on a Mat given bounding box coordinates and
+     * dimensions representing a region of interest. The returned cropped Mat
+     * carries a copy of the source Mat's data. <br></br>
+     * 
+     * The original Mat is not modified or deallocated as a result of the
+     * operation; it is the responsibility of the caller to deallocate it
+     * afterwards if they wish.
+     * 
+     * @param src
+     * @param xCoord
+     * @param yCoord
+     * @param width
+     * @param height
+     * @return
+     */
+    public static Mat trueCropMat(
+        Mat src,
+        int xCoord,
+        int yCoord,
+        int width,
+        int height
+    ) {
+        Rect roiDims = new Rect(xCoord, yCoord, width, height);
+        Mat croppedMatCopy = new Mat();
+        // The data is shared rather than copied
+        try (Mat croppedMat = new Mat(src, roiDims)) {
+            // Now the data is copied
+            croppedMat.copyTo(croppedMatCopy);
+        }
+        roiDims.deallocate();
+        return croppedMatCopy;
+    }
+
+    /**
      * Creates and returns a new square version of the given Mat. <br></br>
      * 
      * The original Mat is not modified or deallocated as a result of the
-     * resize; it is the responsibility of the caller to deallocate it
-     * afterwards if they wish to.
+     * operation; it is the responsibility of the caller to deallocate it
+     * afterwards if they wish.
      * 
      * @param src Mat to be resized.
      * @param length Desired length of the resized Mat.
@@ -148,16 +234,12 @@ public class ImageUtils {
      * length corresponds to the size along the negative Y-axis.
      * 
      * @param img Image to draw onto.
-     * @param frameDataList List of FrameData objects describing the position
-     *                      and dimensions of each frame to be drawn.
+     * @param roiList List of FrameData objects representing ROIs describing
+     *                the position and dimensions of each frame to be drawn.
      * @throws NullPointerException If any arguments are null.
      */
-    public static void drawFrames(
-        BufferedImage img,
-        List<FrameData> frameDataList,
-        Map<Integer, String> labelLegend
-    ) {
-        drawFrames(img, frameDataList, labelLegend, false);
+    public static void drawFrames(BufferedImage img, List<FrameData> roiList) {
+        drawFrames(img, roiList, false);
     }
 
     /**
@@ -170,27 +252,21 @@ public class ImageUtils {
      * See {@link #drawFrames(BufferedImage, List)}.
      * 
      * @param img Image to draw onto.
-     * @param frameDataList List of FrameData objects describing the position
-     *                      and dimensions of each frame to be drawn.
-     * @param labelLegend Map that maps each unique label to a corresponding
-     *                    string name.
+     * @param roiList List of FrameData objects representing ROIs describing
+     *                the position and dimensions of each frame to be drawn.
      * @param debug Enable or disable debug mode.
      * @throws NullPointerException If any arguments are null.
      */
     public static void drawFrames(
         BufferedImage img,
-        List<FrameData> frameDataList,
-        Map<Integer, String> labelLegend,
+        List<FrameData> roiList,
         boolean debug
     ) {
         if (img == null) {
             throw new NullPointerException("Image is null");
         }
-        if (frameDataList == null) {
-            throw new NullPointerException("Frame data list is null");
-        }
-        if (labelLegend == null) {
-            throw new NullPointerException("Label legend is null");
+        if (roiList == null) {
+            throw new NullPointerException("ROI list is null");
         }
         Graphics2D g2d = img.createGraphics();
         g2d.setColor(Color.RED);
@@ -210,33 +286,24 @@ public class ImageUtils {
             )
         );
         g2d.setFont(new Font("Arial", Font.PLAIN, fontSize));
-        for (FrameData frameData: frameDataList) {
+        for (FrameData roi: roiList) {
             // X and Y coords indicate top left of rectangle
             g2d.drawRect(
-                frameData.xCoord,
-                frameData.yCoord,
-                frameData.width,
-                frameData.height
+                roi.xCoord,
+                roi.yCoord,
+                roi.width,
+                roi.height
             );
             // Labels are drawn directly above rectangle
             if (debug) {
                 g2d.drawString(
-                    String.format(
-                        "%s : %.3f",
-                        labelLegend.get(frameData.label),
-                        frameData.predictScore
-                    ),
-                    frameData.xCoord,
-                    frameData.yCoord - fontSize / 2
+                    String.format("%s : %.3f", roi.label, roi.predictScore),
+                    roi.xCoord,
+                    roi.yCoord - fontSize / 2
                 );
+                continue;
             }
-            else {
-                g2d.drawString(
-                    labelLegend.get(frameData.label),
-                    frameData.xCoord,
-                    frameData.yCoord - fontSize / 2
-                );
-            }
+            g2d.drawString(roi.label, roi.xCoord, roi.yCoord - fontSize / 2);
         }
         g2d.dispose();
     }

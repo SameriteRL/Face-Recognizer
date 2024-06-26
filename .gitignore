@@ -1,10 +1,8 @@
 ######################################################################
 # Project Specific
 
-face-recognizer.xml
-debug
 test-faces
-training-faces
+known-faces
 output
 
 ######################################################################
