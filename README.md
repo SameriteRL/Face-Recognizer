@@ -2,12 +2,17 @@
 ### What is this?
 A fun program that can pinpoint and frame known faces on a variety of test images. It uses pre-trained [YuNet face detection](https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet) and [SFace face recognition](https://github.com/opencv/opencv_zoo/tree/main/models/face_recognition_sface) deep neural network models to perform its job.
 
-It's a work-in-progress of becoming a fully-fledged web application, with [Next.js](https://nextjs.org/) as the frontend and [Spring Boot 2.x](https://spring.io/projects/spring-boot) as the backend.
+It's in the process of becoming a full web application, with [Next.js](https://nextjs.org/) as the frontend and [Spring Boot 2.x](https://spring.io/projects/spring-boot) as the backend.
 
 ## Dependencies
-- [Maven 3.x](https://maven.apache.org/download.cgi)
 - [Node.js 18.17+](https://nodejs.org/en)
 - [Java Development Kit 8.x](https://www.oracle.com/java/technologies/downloads/#java8)
+- [Maven 3.x](https://maven.apache.org/download.cgi)
+
+## Credits
+Thank you **Professor Shiqi Yu** and **Yuantao Feng** for training and providing the YuNet face detection model at `app/src/main/resources/models/yunet_detection_2023mar.onnx`!
+
+Thank you **Professor Deng**, **PhD Candidate Zhong**, and **Master Candidate Wang** for training and providing the SFace face recognition model at `app/src/main/resources/models/sface_recognition_2021dec.onnx`!
 
 ## Why Java?
 That's a really good question. I started this project because my internship manager asked me to do this, both as a learning experience and as a test of my skills. Before I started looking at OpenCV, I asked him what programming language I should use and the answer was ***"preferably Java"***.

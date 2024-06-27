@@ -79,7 +79,6 @@ nbdist/
 ######################################################################
 # Miscellaneous
 
-models/
 known_faces/
 test_images/
 
