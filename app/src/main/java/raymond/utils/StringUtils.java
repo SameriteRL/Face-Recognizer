@@ -15,8 +15,8 @@ public class StringUtils {
      * {@code "txt"}.
      * 
      * @param path Path to get the extension of.
-     * @return The extension of the path, or an empty string if an extension
-     *         doesn't exist.
+     * @return The extension of the path, or an empty string if no extension
+     *         exists.
      * @throws NullPointerException If the path is null.
      */
     public static String getExtension(String path) {
@@ -28,6 +28,31 @@ public class StringUtils {
             return "";
         }
         return path.substring(extSepIdx + 1);
+    }
+
+    /**
+     * Returns the file extension of the given path, including the extension
+     * dot separator. If the path is a directory or otherwise has no file
+     * extension, an empty string is returned. <p>
+     * 
+     * The extension is the portion at the end of the file's name after the
+     * dot. For example, the extension of {@code "myfolder/doc.txt"} including
+     * the dot is {@code ".txt"}.
+     * 
+     * @param path Path to get the extension of.
+     * @return The extension of the path with the dot separator, or an empty
+     *         string if no extension exists.
+     * @throws NullPointerException If the path is null.
+     */
+    public static String getExtensionWithDot(String path) {
+        if (path == null) {
+            throw new NullPointerException("Path is null");
+        }
+        int extSepIdx = path.lastIndexOf('.');
+        if (extSepIdx == -1) {
+            return "";
+        }
+        return path.substring(extSepIdx);
     }
 
     /**

@@ -18,7 +18,7 @@ import org.springframework.stereotype.Service;
 public class FileService {
 
     @Autowired
-    public ResourceLoader resourceLoader;
+    private ResourceLoader resourceLoader;
 
     /**
      * Retrieves an existing file from the project resources directory.

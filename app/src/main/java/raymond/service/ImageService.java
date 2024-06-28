@@ -118,7 +118,7 @@ public class ImageService {
      * @throws IOException If a format cannot be determined from the image file
      *                     name, or for general I/O errors.
      */
-    public byte[] drawBoxesOnImage(
+    public byte[] visualizeBoxes(
         String imgPath,
         List<FaceBox> roiList
     ) throws IOException {

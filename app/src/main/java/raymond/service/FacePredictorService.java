@@ -16,8 +16,10 @@ import java.util.Map;
 import java.util.Set;
 
 import org.bytedeco.opencv.opencv_core.Mat;
+import org.bytedeco.opencv.opencv_objdetect.FaceDetectorYN;
 import org.bytedeco.opencv.opencv_objdetect.FaceRecognizerSF;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import raymond.classes.FaceBox;
@@ -25,7 +27,8 @@ import raymond.utils.StringUtils;
 
 /**
  * Utilizes the SFace deep neural netowrk face recognition model. Thank you
- * Professor Deng, Ph.D Candidate Zhong, and Master Candidate Wang! <p>
+ * Professor Weihong Deng, PhD Candidate Zhong Yaoyao, and Master Candidate
+ * Chengrui Wang! <p>
  * 
  * https://github.com/opencv/opencv_zoo/tree/main/models/face_recognition_sface
  * <p>
@@ -40,7 +43,13 @@ import raymond.utils.StringUtils;
 public class FacePredictorService {
 
     @Autowired
+    private FaceDetectorService faceDetectorService;
+
+    @Autowired
     private ImageService imageService;
+
+    @Value("${app.service.facerecognizerpath}")
+    private String faceRecognizerModelPath;
 
     private static final Set<String> acceptedFormats = new HashSet<String>(
         Arrays.asList(
@@ -57,6 +66,20 @@ public class FacePredictorService {
     };
 
     /**
+     * Creates a new FaceRecognizerSF object.
+     * 
+     * It is the caller's responsibility to later deallocate the face
+     * recognizer properly.
+     * 
+     * @return A new FaceDetectorSF object.
+     */
+    public FaceRecognizerSF createFaceRecognizer() {
+        FaceRecognizerSF faceRecognizer =
+            FaceRecognizerSF.create(faceRecognizerModelPath, "");
+        return faceRecognizer;
+    }
+
+    /**
      * Identifies faces in the test image by comparing them against a set of
      * known faces. Note that not all image formats are supported; see
      * {@link #FacePredictor} for details. <p>
@@ -68,7 +91,7 @@ public class FacePredictorService {
      * @param testImgBytes Byte array of the image to predict faces from.
      * @param knownFaces Map of known subjects and their corresponding facial
      *                   feature Mats.
-     * @param detectorModelPath Path of the YuNet face detection model.
+     * @param faceDetector YuNet face detection model.
      * @param faceRecognizer SFace face recognition model.
      * @return A list of regions of interest (ROIs), each one describing the
      *         coordinates + dimensions of each face as well as the predicted
@@ -79,7 +102,7 @@ public class FacePredictorService {
     public List<FaceBox> predictFaces(
         byte[] testImgBytes,
         Map<String, List<Mat>> knownFaces,
-        String detectorModelPath,
+        FaceDetectorYN faceDetector,
         FaceRecognizerSF faceRecognizer
     ) throws IOException {
         if (testImgBytes == null) {
@@ -92,7 +115,7 @@ public class FacePredictorService {
             return predictFaces(
                 tempInputFile.getAbsolutePath(),
                 knownFaces,
-                detectorModelPath,
+                faceDetector,
                 faceRecognizer
             );
         }
@@ -113,7 +136,7 @@ public class FacePredictorService {
      * @param testImgPath Path of the test image to predict faces from.
      * @param knownFaces Map of known subjects and their corresponding facial
      *                   feature Mats.
-     * @param detectorModelPath Path of the YuNet face detection model.
+     * @param faceDetector YuNet face detection model.
      * @param faceRecognizer SFace face recognition model.
      * @return A list of regions of interest (ROIs), each one describing the
      *         coordinates + dimensions of each face as well as the predicted
@@ -124,7 +147,7 @@ public class FacePredictorService {
     public List<FaceBox> predictFaces(
         String testImgPath,
         Map<String, List<Mat>> knownFaces,
-        String detectorModelPath,
+        FaceDetectorYN faceDetector,
         FaceRecognizerSF faceRecognizer
     ) throws IOException {
         if (testImgPath == null) {
@@ -133,8 +156,8 @@ public class FacePredictorService {
         if (knownFaces == null) {
             throw new NullPointerException("Known faces map");
         }
-        if (detectorModelPath == null) {
-            throw new NullPointerException("Face detector model path");
+        if (faceDetector == null) {
+            throw new NullPointerException("Face detector model");
         }
         if (faceRecognizer == null) {
             throw new NullPointerException("Face recognizer model");
@@ -150,7 +173,7 @@ public class FacePredictorService {
                 throw new RuntimeException("Invalid test image");
             }
             testRoiMat =
-                FaceDetectorService.detectFaces(testImgPath, detectorModelPath);
+                faceDetectorService.detectFaces(testImgPath, faceDetector);
             for (int i = 0; i < testRoiMat.rows(); ++i) {
                 try {
                     testFeatureMat = imageService.getFeatureMat(
@@ -208,45 +231,6 @@ public class FacePredictorService {
      * It is the caller's responsibility to properly deallocate the list of
      * Mats in the returned map. <p>
      * 
-     * See {@link #parseKnownFaces(String, String, FaceRecognizerSF)} for
-     * details on the required faces directory structure.
-     * 
-     * @param facesDirPath Path of the known faces directory.
-     * @param detectorModelPath Path of the YuNet face detection model.
-     * @param recognizerModelPath Path of the SFace face recognition model.
-     * @throws NullPointerException If any arguments are null.
-     * @throws IllegalArgumentException If the faces directory is not a
-     *                                  directory or does not exist.
-     * @throws IOException For general I/O errors.
-     * @throws RuntimeException If no valid faces were parsed.
-     * @return A map that maps each subject's name to a list of facial feature
-     *         Mats associated with them.
-     */
-    public Map<String, List<Mat>> parseKnownFaces(
-        String facesDirPath,
-        String detectorModelPath,
-        String recognizerModelPath
-    ) throws IOException {
-        try (FaceRecognizerSF faceRecognizer = 
-                FaceRecognizerSF.create(recognizerModelPath, "")
-        ) {
-            return parseKnownFaces(
-                facesDirPath,
-                detectorModelPath,
-                faceRecognizer
-            );
-        }
-    }
-
-    /**
-     * Parses a directory of known faces and returns a map of subject names
-     * (denoted by subdirectory names) and their corresponding list of
-     * facial feature Mats. These Mats are ready to be used for face
-     * recognition via {@code FaceRecognizerSF.match()}. <p>
-     * 
-     * It is the caller's responsibility to properly deallocate the list of
-     * Mats in the returned map. <p>
-     * 
      * The required structure of the faces directory is as follows. Any file
      * that's not a subdirectory or is not in one, as well as all unsupported
      * image files are ignored.
@@ -263,7 +247,7 @@ public class FacePredictorService {
      * </code> </pre>
      * 
      * @param facesDirPath Path of the known faces directory.
-     * @param detectorModelPath Path of the YuNet face detection model.
+     * @param faceDetector YuNet face detection model.
      * @param faceRecognizer SFace face recognition model.
      * @throws NullPointerException If any arguments are null.
      * @throws IllegalArgumentException If the faces directory is not a
@@ -275,7 +259,7 @@ public class FacePredictorService {
      */
     public Map<String, List<Mat>> parseKnownFaces(
         String facesDirPath,
-        String detectorModelPath,
+        FaceDetectorYN faceDetector,
         FaceRecognizerSF faceRecognizer
     ) throws IOException {
         File rootDir = new File(facesDirPath);
@@ -299,9 +283,9 @@ public class FacePredictorService {
                 for (File imgFile: imgFileArr) {
                     try {
                         imgMat = imread(imgFile.getAbsolutePath());
-                        roiMat = FaceDetectorService.detectFaces(
+                        roiMat = faceDetectorService.detectFaces(
                             imgMat,
-                            detectorModelPath
+                            faceDetector
                         );
                         // Ideally one person per image, but multiple instances
                         // of the same person will still work.
