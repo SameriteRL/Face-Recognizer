@@ -8,6 +8,7 @@ export default function Home() {
   const [faceFile, setFaceFile] = useState(null);
   const [testFile, setTestFile] = useState(null);
   const [imageSrc, setImageSrc] = useState("");
+  const [formDisabled, setFormDisabled] = useState(false);
 
   const handleFaceFileChange = (e) => {
     setFaceFile(e.target.files[0]);
@@ -22,6 +23,7 @@ export default function Home() {
     const formData = new FormData();
     formData.append("faceImg", faceFile);
     formData.append("testImg", testFile);
+    setFormDisabled(true);
     try {
       const response = await axios.post(
         "http://localhost:8080/submit",
@@ -38,19 +40,22 @@ export default function Home() {
     catch (error) {
       console.error("Error uploading file", error);
     }
+    setFormDisabled(false);
   };
 
   return (
     <div>
-      <h1>Upload a face</h1>
+      <h1>Upload a face less than 10MB</h1>
       <form>
-        <input type="file" onChange={handleFaceFileChange} />
+        <input type="file" onChange={handleFaceFileChange} disabled={formDisabled}/>
       </form>
-      <h1>Upload a test image</h1>
+      <h1>Upload a test image less than 10MB</h1>
       <form>
-        <input type="file" onChange={handleTestFileChange} />
+        <input type="file" onChange={handleTestFileChange} disabled={formDisabled}/>
       </form>
+      <br/>
       <button onClick={handleSubmit}>Submit</button>
+      <br/>
       {
         imageSrc ?
         <img src={imageSrc} alt="Dynamically Generated" width={500} height={500}/>
