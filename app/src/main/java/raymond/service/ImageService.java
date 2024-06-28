@@ -6,6 +6,7 @@ import java.awt.Font;
 import java.awt.Graphics2D;
 import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
@@ -20,7 +21,8 @@ import com.drew.imaging.ImageMetadataReader;
 import com.drew.metadata.Metadata;
 import com.drew.metadata.exif.ExifIFD0Directory;
 
-import raymond.classes.ROIData;
+import raymond.classes.FaceBox;
+import raymond.utils.StringUtils;
 
 @Service
 public class ImageService {
@@ -29,7 +31,7 @@ public class ImageService {
      * Allocates and returns a face feature Mat of an image. Requires a SFace
      * face recognizer, as well as a set of face box coordinates and dimensions
      * typically determined using the YuNet face detection model elsewhere.
-     * <br></br>
+     * <p>
      * 
      * The original Mat is not modified or deallocated as a result of the
      * operation; it is the responsibility of the caller to later deallocate it
@@ -60,7 +62,7 @@ public class ImageService {
      * Allocates and returns a face feature Mat of an image. Requires a SFace
      * face recognizer, as well as a set of face box coordinates and dimensions
      * typically determined using the YuNet face detection model elsewhere.
-     * <br></br>
+     * <p>
      * 
      * The original Mat is not modified or deallocated as a result of the
      * operation; it is the responsibility of the caller to later deallocate it
@@ -107,17 +109,39 @@ public class ImageService {
     }
 
     /**
+     * Visualizes face recognition results by drawing bounding boxes onto a
+     * test image. Returns a byte array representation of the resulting image.
+     * 
+     * @param imgPath Path of the image to draw onto.
+     * @param roiList List of ROIs to draw onto the image.
+     * @return A byte array representing the resulting image.
+     * @throws IOException If a format cannot be determined from the image file
+     *                     name, or for general I/O errors.
+     */
+    public byte[] drawBoxesOnImage(
+        String imgPath,
+        List<FaceBox> roiList
+    ) throws IOException {
+        String imgFormat = StringUtils.getExtension(imgPath);
+        BufferedImage bufImg = createBufferedImage(imgPath);
+        drawBoxes(bufImg, roiList, false);
+        ByteArrayOutputStream imgOutStream = new ByteArrayOutputStream();
+        ImageIO.write(bufImg, imgFormat, imgOutStream);
+        return imgOutStream.toByteArray();
+    }
+
+    /**
      * Creates a BufferedImage from an image path and corrects its orientation,
-     * if necessary. <br></br>
+     * if necessary. <p>
      * 
      * Because ImageIO.read() does not read image metadata, photos that were
      * rotated on smartphones might be loaded in with their original
      * orientation. This function checks the image's orientation metadata and
      * corrects the image if necessary, resulting in a BufferedImage that
-     * matches the orientation you see in the file system. <br></br>
+     * matches the orientation you see in the file system. <p>
      * 
      * If metadata cannot be determined from the image, an unmodified
-     * BufferedImage is returned. <br></br>
+     * BufferedImage is returned. <p>
      * 
      * @param imgPath Path to the image file.
      * @return BufferedImage with the correct orientation.
@@ -184,38 +208,24 @@ public class ImageService {
     }
 
     /**
-     * Draws a red rectangular frame onto the given image for each ROI in
-     * the given list. The image is modified in-place. <br></br>
+     * Helper method to draw red rectangular boxes onto an image for each ROI
+     * in the given list. The image is modified in-place. <p>
      * 
      * The X and Y coordinates marks the top left corner of each frame. The
      * width corresponds to the frame's size along the positive X-axis, and the
-     * length corresponds to the size along the negative Y-axis.
+     * length corresponds to the size along the negative Y-axis. <p>
+     * 
+     * If {@code debug == true}, the "confidence" score associated with each
+     * frame is also drawn.
      * 
      * @param img Image to draw onto.
-     * @param roiList List of ROIData objects.
-     * @throws NullPointerException If any arguments are null.
-     */
-    public void drawFrames(BufferedImage img, List<ROIData> roiList) {
-        drawFrames(img, roiList, false);
-    }
-
-    /**
-     * Underlying method with an extra parameter to enable or disable debugging
-     * mode. <br></br>
-     * 
-     * If <code>debug == true</code>, the confidence score associated with each
-     * frame is also drawn. <br></br>
-     * 
-     * See {@link #drawFrames(BufferedImage, List)}.
-     * 
-     * @param img Image to draw onto.
-     * @param roiList List of ROIData objects.
+     * @param roiList List of FaceBox objects.
      * @param debug Enable or disable debug mode.
      * @throws NullPointerException If any arguments are null.
      */
-    public void drawFrames(
+    private void drawBoxes(
         BufferedImage img,
-        List<ROIData> roiList,
+        List<FaceBox> roiList,
         boolean debug
     ) {
         if (img == null) {
@@ -242,7 +252,7 @@ public class ImageService {
             )
         );
         g2d.setFont(new Font("Arial", Font.PLAIN, fontSize));
-        for (ROIData roi: roiList) {
+        for (FaceBox roi: roiList) {
             // X and Y coords indicate top left of rectangle
             g2d.drawRect(
                 roi.xCoord,

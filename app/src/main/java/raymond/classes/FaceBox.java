@@ -7,7 +7,7 @@ import org.bytedeco.opencv.opencv_core.Mat;
  * Simple class that encapsulates bounding box, face feature, face detection,
  * and face recognition data related to a region of interest (ROI).
  */
-public class ROIData {
+public class FaceBox {
 
     // Bounding box data
     public final int xCoord;
@@ -36,14 +36,14 @@ public class ROIData {
 
     /**
      * Constructs a new FrameData using a face detection result Mat, typically
-     * determined using the YuNet face detection model. <br></br>
+     * determined using the YuNet face detection model. <p>
      * 
      * The associated label is set to an empty string and the associated
      * prediction score is set to -1 by default.
      * 
-     * @param mat Face detection result Mat to construct the ROIData with.
+     * @param mat Face detection result Mat to construct the FaceBox with.
      */
-    public ROIData(int row, Mat mat) {
+    public FaceBox(int row, Mat mat) {
         FloatRawIndexer indexer = mat.createIndexer();
         this.xCoord       = (int) indexer.get(row, 0);
         this.yCoord       = (int) indexer.get(row, 1);
@@ -67,16 +67,16 @@ public class ROIData {
     /**
      * Constructs a new FrameData using a face detection result Mat, typically
      * determined using the YuNet face detection model. The given scale factors
-     * are applied to all X and Y coordinates in the Mat. <br></br>
+     * are applied to all X and Y coordinates in the Mat. <p>
      * 
      * The associated label is set to an empty string and the associated
      * prediction score is set to -1 by default.
      * 
-     * @param mat Face detection result Mat to construct the ROIData with.
+     * @param mat Face detection result Mat to construct the FaceBox with.
      * @param scaleX Factor to scale X-coordinates by.
      * @param scaleY Factor to scale Y-coorindates by.
      */
-    public ROIData(int row, Mat mat, double scaleX, double scaleY) {
+    public FaceBox(int row, Mat mat, double scaleX, double scaleY) {
         FloatRawIndexer indexer = mat.createIndexer();
         this.xCoord       = (int) (indexer.get(row, 0)  * scaleX);
         this.yCoord       = (int) (indexer.get(row, 1)  * scaleY);

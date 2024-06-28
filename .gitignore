@@ -79,8 +79,8 @@ nbdist/
 ######################################################################
 # Miscellaneous
 
-known_faces/
-test_images/
+known-faces/
+test-faces
 
 *.log
 *.xml.versionsBackup

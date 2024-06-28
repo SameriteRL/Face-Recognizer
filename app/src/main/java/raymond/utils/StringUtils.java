@@ -8,11 +8,11 @@ public class StringUtils {
     /**
      * Returns the file extension of the given path, not including the
      * extension separator. If the path is a directory or otherwise has no file
-     * extension, an empty string is returned. <br></br>
+     * extension, an empty string is returned. <p>
      * 
      * The extension is the portion at the end of the file's name after the
-     * dot. For example, the extension of <code>"myfolder/doc.txt"</code> is
-     * <code>"txt"</code>.
+     * dot. For example, the extension of {@code "myfolder/doc.txt"} is
+     * {@code "txt"}.
      * 
      * @param path Path to get the extension of.
      * @return The extension of the path, or an empty string if an extension
@@ -33,14 +33,14 @@ public class StringUtils {
     /**
      * Returns the file stem of the given path. If the path is a directory or
      * otherwise has no file extension, the path's basename is returned.
-     * <br></br>
+     * <p>
      * 
      * The stem is the file's name not including its suffix. For example, the
-     * stem of <code>"myfolder/doc.txt"</code> is <code>"doc"</code>.
-     * <br></br>
+     * stem of {@code "myfolder/doc.txt"</code> is <code>"doc"}.
+     * <p>
      * 
      * The basename is the same thing as the file's name. For example, the
-     * basename of <code>"myfolder/doc.txt"</code> is <code>"doc.txt"</code>.
+     * basename of {@code "myfolder/doc.txt"</code> is <code>"doc.txt"}.
      * 
      * @param path Path to get the stem of.
      * @return The stem of the path, which is also the basename of the file if

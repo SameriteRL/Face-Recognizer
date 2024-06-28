@@ -20,19 +20,19 @@ import org.bytedeco.opencv.opencv_objdetect.FaceRecognizerSF;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import raymond.classes.ROIData;
+import raymond.classes.FaceBox;
 import raymond.utils.StringUtils;
 
 /**
  * Utilizes the SFace deep neural netowrk face recognition model. Thank you
- * Professor Deng, Ph.D Candidate Zhong, and Master Candidate Wang! <br></br>
+ * Professor Deng, Ph.D Candidate Zhong, and Master Candidate Wang! <p>
  * 
  * https://github.com/opencv/opencv_zoo/tree/main/models/face_recognition_sface
- * <br></br>
+ * <p>
  * 
  * Note that not all image formats are supported for facial recognition due to
- * limitations of the <code>cv::imread()</code> function. You can find a list
- * of supported formats here: <br></br>
+ * limitations of the {@code cv::imread()} function. You can find a list
+ * of supported formats here: <p>
  * 
  * https://docs.opencv.org/4.x/d4/da8/group__imgcodecs.html
  */
@@ -40,7 +40,7 @@ import raymond.utils.StringUtils;
 public class FacePredictorService {
 
     @Autowired
-    public ImageService imageService;
+    private ImageService imageService;
 
     private static final Set<String> acceptedFormats = new HashSet<String>(
         Arrays.asList(
@@ -59,7 +59,7 @@ public class FacePredictorService {
     /**
      * Identifies faces in the test image by comparing them against a set of
      * known faces. Note that not all image formats are supported; see
-     * {@link #FacePredictor} for details. <br></br>
+     * {@link #FacePredictor} for details. <p>
      * 
      * The known faces map is not modified or deallocated as a result of the
      * operation; it is the caller's responsibility to later deallocate the
@@ -76,7 +76,7 @@ public class FacePredictorService {
      * @throws NullPointerException If any arguments are null.
      * @throws IOException If the image is invalid or for general I/O errors.
      */
-    public List<ROIData> predictFaces(
+    public List<FaceBox> predictFaces(
         byte[] testImgBytes,
         Map<String, List<Mat>> knownFaces,
         String detectorModelPath,
@@ -104,10 +104,11 @@ public class FacePredictorService {
     /**
      * Identifies faces in the test image by comparing them against a set of
      * known faces. Note that not all image formats are supported; see
-     * {@link #FacePredictor} for details. <br></br>
+     * {@link #FacePredictor} for details. <p>
      * 
-     * <strong> It is the caller's responsibility to later deallocate the list
-     * of Mats in the given known faces map. </strong>
+     * The known faces map is not modified or deallocated as a result of the
+     * operation; it is the caller's responsibility to later deallocate the
+     * list of Mats in the given known faces map.
      * 
      * @param testImgPath Path of the test image to predict faces from.
      * @param knownFaces Map of known subjects and their corresponding facial
@@ -120,7 +121,7 @@ public class FacePredictorService {
      * @throws NullPointerException If any arguments are null.
      * @throws IOException If the image is invalid or for general I/O errors.
      */
-    public List<ROIData> predictFaces(
+    public List<FaceBox> predictFaces(
         String testImgPath,
         Map<String, List<Mat>> knownFaces,
         String detectorModelPath,
@@ -138,7 +139,7 @@ public class FacePredictorService {
         if (faceRecognizer == null) {
             throw new NullPointerException("Face recognizer model");
         }
-        List<ROIData> identifiedFaces = new ArrayList<>();
+        List<FaceBox> identifiedFaces = new ArrayList<>();
         Mat testImgMat = null, testRoiMat = null, testFeatureMat = null;
         try {
             testImgMat = imread(testImgPath);
@@ -169,9 +170,10 @@ public class FacePredictorService {
                         }
                         double avgCosScore =
                             cosScore / subjFeatureMatList.size();
-                        // Mean cosine distance >= 0.363 implies exact match
+                        // Mean cosine distance >= 0.363 implies exact match.
+                        // Otherwise, this face is ignored.
                         if (avgCosScore >= 0.363) {
-                            ROIData roi = new ROIData(i, testRoiMat);
+                            FaceBox roi = new FaceBox(i, testRoiMat);
                             roi.label = subjName;
                             roi.predictScore = avgCosScore;
                             identifiedFaces.add(roi);
@@ -199,29 +201,15 @@ public class FacePredictorService {
 
     /**
      * Parses a directory of known faces and returns a map of subject names
-     * (denoted by subdirectory names) and their corresponding collection of
+     * (denoted by subdirectory names) and their corresponding list of
      * facial feature Mats. These Mats are ready to be used for face
-     * recognition via <code>FaceRecognizerSF.match()</code>. Not-yet
-     * recognized faces in test images will be compared against these known
-     * facial features in order to identify them. <br></br>
+     * recognition via {@code FaceRecognizerSF.match()}. <p>
      * 
      * It is the caller's responsibility to properly deallocate the list of
-     * Mats in the returned map. <br></br>
+     * Mats in the returned map. <p>
      * 
-     * The required structure of the faces directory is as follows. Any file
-     * that's not a subdirectory or is not in one, as well as all unsupported
-     * image files are ignored.
-     * 
-     * <pre> <code>
-     * known-faces
-     * |-- person1
-     * |   |-- photo1.png
-     * |   `-- photo2.jpg
-     * |-- person2
-     * |   |--photo1.pgm
-     * |   `--photo2.ppm
-     * ...
-     * </code> </pre>
+     * See {@link #parseKnownFaces(String, String, FaceRecognizerSF)} for
+     * details on the required faces directory structure.
      * 
      * @param facesDirPath Path of the known faces directory.
      * @param detectorModelPath Path of the YuNet face detection model.
@@ -252,14 +240,12 @@ public class FacePredictorService {
 
     /**
      * Parses a directory of known faces and returns a map of subject names
-     * (denoted by subdirectory names) and their corresponding collection of
+     * (denoted by subdirectory names) and their corresponding list of
      * facial feature Mats. These Mats are ready to be used for face
-     * recognition via <code>FaceRecognizerSF.match()</code>. Not-yet
-     * recognized faces in test images will be compared against these known
-     * facial features in order to identify them. <br></br>
+     * recognition via {@code FaceRecognizerSF.match()}. <p>
      * 
      * It is the caller's responsibility to properly deallocate the list of
-     * Mats in the returned map. <br></br>
+     * Mats in the returned map. <p>
      * 
      * The required structure of the faces directory is as follows. Any file
      * that's not a subdirectory or is not in one, as well as all unsupported

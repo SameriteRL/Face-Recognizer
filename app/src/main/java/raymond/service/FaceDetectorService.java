@@ -14,14 +14,14 @@ import org.springframework.stereotype.Service;
 
 /**
  * Utilizes the YuNet deep neural network face detection model. Thank you
- * Professor Shiqi Yu and Yuantao Feng! <br></br>
+ * Professor Shiqi Yu and Yuantao Feng! <p>
  * 
  * https://github.com/opencv/opencv_zoo/tree/master/models/face_detection_yunet
- * <br></br>
+ * <p>
  * 
  * Note that not all image formats are supported for facial recognition due to
- * limitations of the <code>cv::imread()</code> function. You can find a list
- * of supported formats here: <br></br>
+ * limitations of the {@code cv::imread()} function. You can find a list
+ * of supported formats here: <p>
  * 
  * https://docs.opencv.org/4.x/d4/da8/group__imgcodecs.html
  */
@@ -30,27 +30,17 @@ public class FaceDetectorService {
 
     /**
      * Allocates and returns a Mat containing face detection data after
-     * performing face detection on an image. <br></br>
+     * performing face detection on an image. See
+     * {@link #detectFaces(Mat, String)} for return value format. <p>
      * 
      * It is the caller's responsibility to properly deallocate the
-     * returned Mat. <br></br>
+     * returned Mat. <p>
      * 
      * Note that not all image formats are supported; see {@link #FaceDetector}
      * for details.
      * 
      * @param imgPath Path of the image to detect faces from.
      * @param detectorModelPath Path of the YuNet face detector model.
-     * @return A 2D Mat of shape [num_faces, 15]
-     *         <ul>
-     *         <li> 0-1:   x, y of bounding box top left corner
-     *         <li> 2-3:   width, height of bbox
-     *         <li> 4-5:   x, y of right eye
-     *         <li> 6-7:   x, y of left eye
-     *         <li> 8-9:   x, y of nose tip
-     *         <li> 10-11: x, y of right corner of mouth
-     *         <li> 12-13: x, y of left corner of mouth
-     *         <li> 14:    face score
-     *         </ul>
      * @throws NullPointerException If any arguments are null.
      * @throws IllegalArgumentException If the face detector path is invalid.
      * @throws IOException If the image is empty or invalid, or for general I/O
@@ -77,27 +67,17 @@ public class FaceDetectorService {
 
     /**
      * Allocates and returns a Mat containing face detection data after
-     * performing face detection on an image. <br></br>
+     * performing face detection on an image. See
+     * {@link #detectFaces(Mat, String)} for return value format. <p>
      * 
      * It is the caller's responsibility to properly deallocate the
-     * returned Mat. <br></br>
+     * returned Mat. <p>
      * 
      * Note that not all image formats are supported; see {@link #FaceDetector}
      * for details.
      * 
      * @param imgBytes Byte array of the image to detect faces from.
      * @param detectorModelPath Path of the YuNet face detector model.
-     * @return A 2D Mat of shape [num_faces, 15]
-     *         <ul>
-     *         <li> 0-1:   x, y of bounding box top left corner
-     *         <li> 2-3:   width, height of bbox
-     *         <li> 4-5:   x, y of right eye
-     *         <li> 6-7:   x, y of left eye
-     *         <li> 8-9:   x, y of nose tip
-     *         <li> 10-11: x, y of right corner of mouth
-     *         <li> 12-13: x, y of left corner of mouth
-     *         <li> 14:    face score
-     *         </ul>
      * @throws NullPointerException If any arguments are null.
      * @throws IllegalArgumentException If the face detector path is invalid.
      * @throws IOException If the image is empty or invalid, or for general I/O
@@ -136,10 +116,10 @@ public class FaceDetectorService {
 
     /**
      * Allocates and returns a Mat containing face detection data after
-     * performing face detection on an image. <br></br>
+     * performing face detection on an image. <p>
      * 
      * It is the caller's responsibility to properly deallocate the
-     * returned Mat. <br></br>
+     * returned Mat. <p>
      * 
      * Note that not all image formats are supported; see {@link #FaceDetector}
      * for details.
@@ -148,14 +128,14 @@ public class FaceDetectorService {
      * @param detectorModelPath Path of the YuNet face detector model.
      * @return A 2D Mat of shape [num_faces, 15]
      *         <ul>
-     *         <li> 0-1:   x, y of bounding box top left corner
-     *         <li> 2-3:   width, height of bbox
-     *         <li> 4-5:   x, y of right eye
-     *         <li> 6-7:   x, y of left eye
-     *         <li> 8-9:   x, y of nose tip
-     *         <li> 10-11: x, y of right corner of mouth
-     *         <li> 12-13: x, y of left corner of mouth
-     *         <li> 14:    face score
+     *           <li> 0-1:   x, y of bounding box top left corner
+     *           <li> 2-3:   width, height of bbox
+     *           <li> 4-5:   x, y of right eye
+     *           <li> 6-7:   x, y of left eye
+     *           <li> 8-9:   x, y of nose tip
+     *           <li> 10-11: x, y of right corner of mouth
+     *           <li> 12-13: x, y of left corner of mouth
+     *           <li> 14:    face score
      *         </ul>
      * @throws NullPointerException If any arguments are null.
      * @throws IllegalArgumentException If the face detector path is invalid.

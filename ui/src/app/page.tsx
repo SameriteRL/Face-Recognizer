@@ -1,12 +1,13 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import axios from 'axios';
+import { useState } from "react";
+import axios from "axios";
 
 export default function Home() {
+
   const [faceFile, setFaceFile] = useState(null);
   const [testFile, setTestFile] = useState(null);
-  const [output, setOutput] = useState("Waiting for output...");
+  const [imageSrc, setImageSrc] = useState("");
 
   const handleFaceFileChange = (e) => {
     setFaceFile(e.target.files[0]);
@@ -19,18 +20,23 @@ export default function Home() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     const formData = new FormData();
-    formData.append('faceImg', faceFile);
-    formData.append('testImg', testFile);
+    formData.append("faceImg", faceFile);
+    formData.append("testImg", testFile);
     try {
       const response = await axios.post(
-        'http://localhost:8080/upload',
+        "http://localhost:8080/submit",
         formData,
-        { headers: {'Content-Type': 'multipart/form-data'} }
+        {
+          headers: {"Content-Type": "multipart/form-data"},
+          responseType: "blob"
+        }
       );
-      console.log('File uploaded successfully', response.data);
+      const url = URL.createObjectURL(response.data);
+      console.log("File uploaded successfully", response.data);
+      setImageSrc(url);
     }
     catch (error) {
-      console.error('Error uploading file', error);
+      console.error("Error uploading file", error);
     }
   };
 
@@ -44,10 +50,13 @@ export default function Home() {
       <form>
         <input type="file" onChange={handleTestFileChange} />
       </form>
-      <button onClick={handleSubmit}>
-        Submit
-      </button>
-      <p>{output}</p>
+      <button onClick={handleSubmit}>Submit</button>
+      {
+        imageSrc ?
+        <img src={imageSrc} alt="Dynamically Generated" width={500} height={500}/>
+        :
+        <p>Waiting for output...</p>
+      }
     </div>
   );
 }
