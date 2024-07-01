@@ -61,11 +61,11 @@ public class StringUtils {
      * <p>
      * 
      * The stem is the file's name not including its suffix. For example, the
-     * stem of {@code "myfolder/doc.txt"</code> is <code>"doc"}.
+     * stem of {@code "myfolder/doc.txt"} is {@code "doc"}.
      * <p>
      * 
      * The basename is the same thing as the file's name. For example, the
-     * basename of {@code "myfolder/doc.txt"</code> is <code>"doc.txt"}.
+     * basename of {@code "myfolder/doc.txt"} is {@code "doc.txt"}.
      * 
      * @param path Path to get the stem of.
      * @return The stem of the path, which is also the basename of the file if
