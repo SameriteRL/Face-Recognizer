@@ -1,13 +1,19 @@
 # The OpenCV Facial Recognition App Written in Java
 ### What is this?
-A fun web application that can read one or more known faces and pinpoint them with high accuracy on subsequent test images. Uses [Next.js](https://nextjs.org/) for the frontend and [Spring Boot](https://spring.io/projects/spring-boot) for the backend.
+A fun web application that can read one or more faces and pinpoint them with high accuracy on any number of subsequent test images. Uses a [Next.js](https://nextjs.org/) frontend and a [Spring Boot](https://spring.io/projects/spring-boot) backend.
 
-## Dependencies
+Currently, the web interface only allows one face image and one test image to be uploaded, but I'm working on that.
+
+## Dependencies & Usage
 - [Node.js 18.17+](https://nodejs.org/en)
 - [Java Development Kit 8.x](https://www.oracle.com/java/technologies/downloads/#java8)
 - [Maven 3.x](https://maven.apache.org/download.cgi)
 
-Don't forget to `npm install` and `mvn package` before running!
+Also worth mentioning that I use `pnpm` to manage frontend packages and to run the frontend, although I don't know enough about frontend development to know whether it's actually required to run this project.
+
+Install the necessary `node_modules` by running `npm install` inside the frontend Next.js project, or whatever the `pnpm` equivalent is. I run `pnpm dev` to run the frontend server (again, I don't really know what I'm doing).
+
+For the backend Spring Boot project, running `mvn package` should be all that's required. After that, `Application.java` can be executed to start up the backend server.
 
 ## Credits
 This app utilizes pre-trained [YuNet face detection](https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet) and [SFace face recognition](https://github.com/opencv/opencv_zoo/tree/main/models/face_recognition_sface) deep neural network models, which are already present in this repository.
@@ -25,4 +31,4 @@ The reason I say using Java makes no sense is because there was zero technical r
 
 As a result, I dealt with generally poor documentation (having to cross-reference C++ docs), unhelpful error messages (if C++ errors weren't cryptic enough, they look worse coming from the JVM), and more C pointer memory management than I'd like. I've also had to ChatGPT almost every OpenCV-related error I ran into because there apparently isn't very strong community support behind OpenCV's face module.
 
-But hey, in the end I have a working program that I'm proud of.
+But hey, the program works so the end justifies the means.
