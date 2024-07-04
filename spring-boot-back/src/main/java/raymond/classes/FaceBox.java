@@ -4,8 +4,8 @@ import org.bytedeco.javacpp.indexer.FloatRawIndexer;
 import org.bytedeco.opencv.opencv_core.Mat;
 
 /**
- * Simple class that encapsulates bounding box, face feature, face detection,
- * and face recognition data related to a region of interest (ROI).
+ * Simple class that encapsulates coordinates, face feature, face detection,
+ * and face recognition data related to a face's bounding box.
  */
 public class FaceBox {
 
@@ -33,6 +33,37 @@ public class FaceBox {
     // Facial recognition data
     public String label;
     public double predictScore;
+
+    /**
+     * Constructs a new FrameData using one row of a face detection result Mat,
+     * typically determined using the YuNet face detection model. In other
+     * words, the detection result of only one face. <p>
+     * 
+     * The associated label is set to an empty string and the associated
+     * prediction score is set to -1 by default.
+     * 
+     * @param mat Face detection result row to construct the FaceBox with.
+     */
+    public FaceBox(Mat mat) {
+        FloatRawIndexer indexer = mat.createIndexer();
+        this.xCoord       = (int) indexer.get(0, 0);
+        this.yCoord       = (int) indexer.get(0, 1);
+        this.width        = (int) indexer.get(0, 2);
+        this.height       = (int) indexer.get(0, 3);
+        this.xRightEye    = (int) indexer.get(0, 4);
+        this.yRightEye    = (int) indexer.get(0, 5);
+        this.xLeftEye     = (int) indexer.get(0, 6);
+        this.yLeftEye     = (int) indexer.get(0, 7);
+        this.xNoseTip     = (int) indexer.get(0, 8);
+        this.yNoseTip     = (int) indexer.get(0, 9);
+        this.xRightMouth  = (int) indexer.get(0, 10);
+        this.yRightMouth  = (int) indexer.get(0, 11);
+        this.xLeftMouth   = (int) indexer.get(0, 12);
+        this.yLeftMouth   = (int) indexer.get(0, 13);
+        this.detectScore  =       indexer.get(0, 14);
+        this.label        = "";
+        this.predictScore = -1.0;
+    }
 
     /**
      * Constructs a new FrameData using a face detection result Mat, typically

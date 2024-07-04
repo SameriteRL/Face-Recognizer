@@ -1,15 +1,18 @@
 package raymond.service;
 
 import static org.bytedeco.opencv.global.opencv_imgcodecs.imread;
+import static org.bytedeco.opencv.global.opencv_core.vconcat;
 
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 
+import org.bytedeco.javacpp.indexer.FloatRawIndexer;
 import org.bytedeco.opencv.opencv_core.Mat;
 import org.bytedeco.opencv.opencv_core.Size;
 import org.bytedeco.opencv.opencv_objdetect.FaceDetectorYN;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -31,6 +34,9 @@ public class FaceDetectorService {
 
     @Value("${app.service.facedetectorpath}")
     private String faceDetectorModelPath;
+
+    @Autowired
+    private MatService matService;
 
     /**
      * Creates a new FaceDetectorYN object. Make sure to set the input size
@@ -70,8 +76,9 @@ public class FaceDetectorService {
 
     /**
      * Allocates and returns a Mat containing face detection data after
-     * performing face detection on an image. See
-     * {@link #detectFaces(Mat, String)} for return value format. <p>
+     * performing face detection on an image. The face detector's internal
+     * input size parameter is modified as a result of this call, so no need to
+     * manually set the input size before calling this method. <p>
      * 
      * It is the caller's responsibility to properly deallocate the
      * returned Mat. <p>
@@ -81,6 +88,7 @@ public class FaceDetectorService {
      * 
      * @param imgBytes Byte array of the image to detect faces from.
      * @param faceDetector YuNet face detector model.
+     * @return See {@link #detectFaces(Mat, String)}
      * @throws NullPointerException If any arguments are null.
      * @throws IllegalArgumentException If the face detector path is invalid.
      * @throws IOException If the image is empty or invalid, or for general I/O
@@ -108,8 +116,9 @@ public class FaceDetectorService {
 
     /**
      * Allocates and returns a Mat containing face detection data after
-     * performing face detection on an image. See
-     * {@link #detectFaces(Mat, String)} for return value format. <p>
+     * performing face detection on an image. The face detector's internal
+     * input size parameter is modified as a result of this call, so no need to
+     * manually set the input size before calling this method. <p>
      * 
      * It is the caller's responsibility to properly deallocate the
      * returned Mat. <p>
@@ -119,6 +128,7 @@ public class FaceDetectorService {
      * 
      * @param imgPath Path of the image to detect faces from.
      * @param faceDetector YuNet face detector model.
+     * @return See {@link #detectFaces(Mat, String)}
      * @throws NullPointerException If any arguments are null.
      * @throws IllegalArgumentException If the face detector path is invalid.
      * @throws IOException If the image is empty or invalid, or for general I/O
@@ -145,10 +155,13 @@ public class FaceDetectorService {
 
     /**
      * Allocates and returns a Mat containing face detection data after
-     * performing face detection on an image. <p>
+     * performing face detection on an image. The face detector's internal
+     * input size parameter is modified as a result of this call, so no need to
+     * manually set the input size before calling this method. <p>
      * 
-     * It is the caller's responsibility to properly deallocate the
-     * returned Mat. <p>
+     * The original Mat is not modified or deallocated as a result of the
+     * operation; it is the responsibility of the caller to later deallocate it
+     * as well as the returned Mat. <p>
      * 
      * Note that not all image formats are supported; see {@link #FaceDetector}
      * for details.
@@ -184,25 +197,65 @@ public class FaceDetectorService {
         if (imgMat.data() == null || imgMat.rows() <= 0 || imgMat.cols() <= 0) {
             throw new IOException("Invalid image Mat");
         }
-        Mat facesMat = null;
-        Size detectSize = null;
-        try {
-            facesMat = new Mat();
-            detectSize = new Size(imgMat.cols(), imgMat.rows());
-            faceDetector.setInputSize(detectSize);
-            faceDetector.detect(imgMat, facesMat);
-        }
-        catch (Exception e) {
-            if (facesMat != null) {
-                facesMat.deallocate();
+        Mat aggResult = new Mat(0, 15, 5),
+            tempImgMat = imgMat.clone(),
+            tempDetectResult = null,
+            tempConcatResult = null,
+            tempResizedImg = null;
+        double scaleFactor = 1.0;
+        do {
+            try {
+                setDetectorInputSize(
+                    faceDetector,
+                    tempImgMat.cols(),
+                    tempImgMat.rows()
+                );
+                tempDetectResult = new Mat();
+                faceDetector.detect(tempImgMat, tempDetectResult);
+                if (tempDetectResult.rows() > 0) {
+                    // Maps face detection results to original image
+                    if (scaleFactor != 1.0) {
+                        try (FloatRawIndexer indexer =
+                                tempDetectResult.createIndexer()
+                        ) {
+                            for (int i = 0; i < tempDetectResult.rows(); ++i) {
+                                for (int j = 0; j < 14; ++j) {
+                                    indexer.put(
+                                        i,
+                                        j,
+                                        Math.round(indexer.get(i, j) / scaleFactor)
+                                    );
+                                }
+                            }
+                        }
+                    }
+                    // Aggregates face detection results
+                    tempConcatResult = new Mat();
+                    vconcat(aggResult, tempDetectResult, tempConcatResult);
+                    aggResult.deallocate();
+                    aggResult = tempConcatResult;
+                }
+                scaleFactor -= 0.2;
+                tempResizedImg = matService.resizeImg(imgMat, scaleFactor);
             }
-            throw e;
-        }
-        finally {
-            if (detectSize != null) {
-                detectSize.deallocate();
+            catch (Exception e) {
+                if (aggResult != null) {
+                    aggResult.deallocate();
+                }
+                throw e;
             }
-        }
-        return facesMat;
+            finally {
+                if (tempDetectResult != null) {
+                    tempDetectResult.deallocate();
+                }
+                if (tempImgMat != null) {
+                    tempImgMat.deallocate();
+                }
+                tempImgMat = tempResizedImg;
+            }
+        } while (imgMat.cols() > 300
+                    && imgMat.rows() > 300
+                    && scaleFactor > 0.3);
+        return aggResult;
     }
 }

@@ -1,8 +1,5 @@
 package raymond.utils;
 
-/**
- * This class is a collection of various string observer methods.
- */
 public class StringUtils {
     
     /**

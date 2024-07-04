@@ -28,6 +28,7 @@ public class FileSubmitController {
             );
         }
         catch (Exception exc) {
+            exc.printStackTrace();
             return ResponseEntity.internalServerError().body(null);
         }
     }

@@ -13,8 +13,6 @@ import java.util.List;
 
 import javax.imageio.ImageIO;
 
-import org.bytedeco.opencv.opencv_core.Mat;
-import org.bytedeco.opencv.opencv_objdetect.FaceRecognizerSF;
 import org.springframework.stereotype.Service;
 
 import com.drew.imaging.ImageMetadataReader;
@@ -26,87 +24,6 @@ import raymond.utils.StringUtils;
 
 @Service
 public class ImageService {
-
-    /**
-     * Allocates and returns a face feature Mat of an image. Requires a SFace
-     * face recognizer, as well as a set of face box coordinates and dimensions
-     * typically determined using the YuNet face detection model elsewhere.
-     * <p>
-     * 
-     * The original Mat is not modified or deallocated as a result of the
-     * operation; it is the responsibility of the caller to later deallocate it
-     * as well as the returned Mat.
-     * 
-     * @param recognizerModelPath Path of the SFace face recognizer model.
-     * @param srcImg Source image, typically the whole original image.
-     * @param fBox Face box coordinates and dimensions on the source image,
-     *             typically one row of a Mat.
-     * @return The feature Mat of the image.
-     */
-    public Mat getFeatureMat(
-        String recognizerModelPath,
-        Mat srcImg,
-        Mat faceBox
-    ) {
-        if (recognizerModelPath == null) {
-            throw new NullPointerException("Face recognizer model path");
-        }
-        try (FaceRecognizerSF fr =
-                FaceRecognizerSF.create(recognizerModelPath, "")
-        ) {
-            return getFeatureMat(fr, srcImg, faceBox);
-        }
-    }
-
-    /**
-     * Allocates and returns a face feature Mat of an image. Requires a SFace
-     * face recognizer, as well as a set of face box coordinates and dimensions
-     * typically determined using the YuNet face detection model elsewhere.
-     * <p>
-     * 
-     * The original Mat is not modified or deallocated as a result of the
-     * operation; it is the responsibility of the caller to later deallocate it
-     * as well as the returned Mat.
-     * 
-     * @param fr SFace face recognizer model.
-     * @param srcImg Source image, typically the whole original image.
-     * @param fBox Face box coordinates and dimensions on the source image,
-     *             typically one row of a Mat.
-     * @return The feature Mat of the image.
-     */
-    public Mat getFeatureMat(
-        FaceRecognizerSF fr,
-        Mat srcImg,
-        Mat faceBox
-    ) {
-        if (fr == null) {
-            throw new NullPointerException("Face recognizer model");
-        }
-        if (srcImg == null) {
-            throw new NullPointerException("Source image Mat");
-        }
-        if (faceBox == null) {
-            throw new NullPointerException("Face box Mat");
-        }
-        Mat alignedMat = null, featureMat = null;
-        try {
-            alignedMat = new Mat();
-            featureMat = new Mat();
-            fr.alignCrop(srcImg, faceBox, alignedMat);
-            fr.feature(alignedMat, featureMat);
-            // Don't know why this has to be cloned, it just does
-            Mat featureMatClone = featureMat.clone();
-            return featureMatClone;
-        }
-        finally {
-            if (alignedMat != null) {
-                alignedMat.deallocate();
-            }
-            if (featureMat != null) {
-                featureMat.deallocate();
-            }
-        }
-    }
 
     /**
      * Visualizes face recognition results by drawing bounding boxes onto a
@@ -134,8 +51,8 @@ public class ImageService {
      * Creates a BufferedImage from an image path and corrects its orientation,
      * if necessary. <p>
      * 
-     * Because ImageIO.read() does not read image metadata, photos that were
-     * rotated on smartphones might be loaded in with their original
+     * Because {@code ImageIO.read()} does not read image metadata, photos that
+     * were rotated on smartphones might be loaded in with their original
      * orientation. This function checks the image's orientation metadata and
      * corrects the image if necessary, resulting in a BufferedImage that
      * matches the orientation you see in the file system. <p>
@@ -175,15 +92,15 @@ public class ImageService {
             // Image is oriented normally
             case 1:
                 return img;
-            // Right side, top (rotate 90 degrees CW)
+            // Left side on bottom (rotate 90 degrees CW)
             case 6:
                 rotateDegrees = 90;
                 break;
-            // Bottom, right side (rotate 180 degrees)
+            // Upside-down (rotate 180 degrees)
             case 3:
                 rotateDegrees = 180;
                 break;
-            // Left side, bottom (rotate 270 degrees CW)
+            // Right side on bottom (rotate 270 degrees CW)
             case 8:
                 rotateDegrees = 270;
                 break;
