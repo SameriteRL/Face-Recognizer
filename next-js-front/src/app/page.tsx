@@ -33,13 +33,14 @@ export default function Home() {
           responseType: "blob"
         }
       );
-      console.log("File uploaded");
+      console.log("Files uploaded");
       try {
         const url = URL.createObjectURL(response.data);
         setImageSrc(url);
+        console.log("Image rendered")
       }
       catch (error) {
-        console.log("Error rendering response image", error);
+        console.log("Error rendering image", error);
       }
     }
     catch (error) {
@@ -52,9 +53,9 @@ export default function Home() {
     <div className="flex flex-col items-center justify-center">
       <form className="flex flex-col items-center overflow-auto box-border p-8">
         <label className="text-2xl">Upload a face less than 10MB</label>
-        <input type="file" accept="image/*" onChange={handleFaceFileChange} disabled={formDisabled} />
+        <input className="mb-7" type="file" accept="image/*" onChange={handleFaceFileChange} disabled={formDisabled} />
         <label className="text-2xl">Upload a test image less than 10MB</label>
-        <input type="file" accept="image/*" onChange={handleTestFileChange} disabled={formDisabled} />
+        <input className="mb-2" type="file" accept="image/*" onChange={handleTestFileChange} disabled={formDisabled} />
         <button className="bg-red-700 text-white font-bold mt-5 py-2 px-4 rounded hover:bg-red-800" onClick={handleSubmit}>Submit</button>
       </form>
       {
