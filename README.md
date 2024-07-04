@@ -2,9 +2,17 @@
 ### What is this?
 A fun web application that can read one or more faces and pinpoint them with high accuracy on any number of subsequent test images. Uses a [Next.js](https://nextjs.org/) frontend and a [Spring Boot](https://spring.io/projects/spring-boot) backend.
 
-Currently, the web interface only allows one face image and one test image to be uploaded, but I'm working on that.
+Currently, the web interface only allows one target face and one test image to be uploaded, but I'm working on that. I'm hoping that one day in the near future, I'll be able to deploy this app on an actual website.
 
-## Dependencies & Usage
+### How do I use it?
+After following setup instructions in the [Dependencies & Setup](#dependencies--setup) section, then with the Next.js and Spring Boot servers running:
+1. Visit [localhost:3000](localhost:3000) where you'll be greeted with a simple, very carefully thought out, well-made interface (thank you Lawrence).
+2. Upload an image of your face or some target face that you want the program to pinpoint in the following test image.
+3. Upload a test image, which the app will attempt to identify the given face within.
+
+The app will spit out a result image, which is the test image with a red bounding box drawn around the target's face. If the target face can't be found in the test image, the test image is just rendered with no modifications.
+
+## Dependencies & Setup
 - [Node.js 18.17+](https://nodejs.org/en)
 - [Java Development Kit 8.x](https://www.oracle.com/java/technologies/downloads/#java8)
 - [Maven 3.x](https://maven.apache.org/download.cgi)
