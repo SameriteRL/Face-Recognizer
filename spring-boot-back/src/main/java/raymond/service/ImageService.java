@@ -10,6 +10,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 import javax.imageio.ImageIO;
 
@@ -30,18 +31,21 @@ public class ImageService {
      * test image. Returns a byte array representation of the resulting image.
      * 
      * @param imgPath Path of the image to draw onto.
-     * @param roiList List of ROIs to draw onto the image.
+     * @param faceBoxList List of face boxes to draw onto the image.
      * @return A byte array representing the resulting image.
+     * @throws NullPointerException If any arguments are null.
      * @throws IOException If a format cannot be determined from the image file
      *                     name, or for general I/O errors.
      */
     public byte[] visualizeBoxes(
         String imgPath,
-        List<FaceBox> roiList
+        List<FaceBox> faceBoxList
     ) throws IOException {
+        Objects.requireNonNull(imgPath, "Image path");
+        Objects.requireNonNull(faceBoxList, "ROI list");
         String imgFormat = StringUtils.getExtension(imgPath);
         BufferedImage bufImg = createBufferedImage(imgPath);
-        drawBoxes(bufImg, roiList, false);
+        drawBoxes(bufImg, faceBoxList, false);
         ByteArrayOutputStream imgOutStream = new ByteArrayOutputStream();
         ImageIO.write(bufImg, imgFormat, imgOutStream);
         return imgOutStream.toByteArray();
@@ -61,16 +65,15 @@ public class ImageService {
      * BufferedImage is returned. <p>
      * 
      * @param imgPath Path to the image file.
-     * @return BufferedImage with the correct orientation.
+     * @return A BufferedImage with the correct orientation.
      * @throws NullPointerException If the image path is null.
-     * @throws IOException If the stream is invalid.
+     * @throws IOException If the stream is invalid or an error occurs while
+     *                     reading the stream.
      */
     public BufferedImage createBufferedImage(
         String imgPath
     ) throws IOException {
-        if (imgPath == null) {
-            throw new NullPointerException("Image path is null");
-        }
+        Objects.requireNonNull(imgPath, "Image path");
         File imgFile = new File(imgPath);
         BufferedImage img = ImageIO.read(imgFile);
         if (img == null) {
@@ -136,21 +139,17 @@ public class ImageService {
      * frame is also drawn.
      * 
      * @param img Image to draw onto.
-     * @param roiList List of FaceBox objects.
+     * @param faceBoxList List of face boxes.
      * @param debug Enable or disable debug mode.
      * @throws NullPointerException If any arguments are null.
      */
     private void drawBoxes(
         BufferedImage img,
-        List<FaceBox> roiList,
+        List<FaceBox> faceBoxList,
         boolean debug
     ) {
-        if (img == null) {
-            throw new NullPointerException("Image is null");
-        }
-        if (roiList == null) {
-            throw new NullPointerException("ROI list is null");
-        }
+        Objects.requireNonNull(img, "Input image");
+        Objects.requireNonNull(faceBoxList, "ROI list");
         Graphics2D g2d = img.createGraphics();
         g2d.setColor(Color.RED);
         // Stroke and font size proportional to length of img's smallest side
@@ -169,7 +168,7 @@ public class ImageService {
             )
         );
         g2d.setFont(new Font("Arial", Font.PLAIN, fontSize));
-        for (FaceBox roi: roiList) {
+        for (FaceBox roi: faceBoxList) {
             // X and Y coords indicate top left of rectangle
             g2d.drawRect(
                 roi.xCoord,

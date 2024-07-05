@@ -1,7 +1,6 @@
 package raymond.service;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
@@ -24,17 +23,18 @@ public class FileService {
      * Retrieves an existing file from the project resources directory.
      * 
      * @param resourcePath Path of the file relative to the resource directory.
-     * @return The requested file.
-     * @throws FileNotFoundException If the file does not exist.
-     * @throws IOException For general I/O errors.
+     * @return The requested file, or null if the resource path is null or
+     *         doesn't refer to an existing file.
      */
-    public File getResourceFile(String resourcePath) throws IOException {
-        Resource resource =
-            resourceLoader.getResource("classpath:" + resourcePath);
-        if (!resource.exists()) {
-            throw new IOException("Resource path does not exist");
+    public File getResourceFile(String resourcePath) {
+        try {
+            Resource resource =
+                resourceLoader.getResource("classpath:" + resourcePath);
+            return resource.getFile();
         }
-        return resource.getFile();
+        catch (NullPointerException | IOException e) {
+            return null;
+        }
     }
 
     /**
@@ -45,23 +45,31 @@ public class FileService {
      * @return true if the resource exists, false otherwise.
      */
     public boolean resourceExists(String resourcePath) {
-        Resource resource =
-            resourceLoader.getResource("classpath:" + resourcePath);
-        if (resource.exists()) {
-            return true;
+        try {
+            Resource resource =
+                resourceLoader.getResource("classpath:" + resourcePath);
+            if (resource.exists()) {
+                return true;
+            }
+            return false;
         }
-        return false;
+        catch (NullPointerException e) {
+            return false;
+        }
     }
 
     /**
      * Recursively deletes the specified directory, meaning that the directory
-     * and all of its subdirectories and subfiles will be deleted. Use this
-     * method at your own risk.
+     * and all of its subdirectories and subfiles are deleted. Use this method
+     * at your own risk.
      * 
-     * @param path Path of the directory to delete recursively.
-     * @throws IOException For general I/O errors.
+     * @param path Path of the directory to delete.
+     * @throws IOException If the path doesn't exist or is not a directory.
      */
     public void deleteDirRecursive(Path path) throws IOException {
+        if (!path.toFile().exists() || !path.toFile().isDirectory()) {
+            throw new IOException("Path is not a directory or doesn't exist");
+        }
         Files.walkFileTree(path, new SimpleFileVisitor<Path>() {
             @Override
             public FileVisitResult visitFile(

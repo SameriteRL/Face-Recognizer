@@ -7,6 +7,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.Objects;
 
 import org.bytedeco.javacpp.indexer.FloatRawIndexer;
 import org.bytedeco.opencv.opencv_core.Mat;
@@ -43,42 +44,36 @@ public class FaceDetectorService {
      * accordingly using {@code FaceDetectorYN.setInputSize()} before using it
      * on an image. <p>
      * 
-     * It is the caller's responsibility to later deallocate the face detector
-     * properly.
+     * It is the caller's responsibility to later deallocate the face detector.
      * 
      * @return A new FaceDetectorYN object with an input size of 0px x 0px.
      */
     public FaceDetectorYN createFaceDetector() {
-        FaceDetectorYN faceDetector = null;
+        FaceDetectorYN fd = null;
         try (Size detectorSize = new Size()) {
-            faceDetector =
-                FaceDetectorYN.create(faceDetectorModelPath, "", detectorSize);
+            fd = FaceDetectorYN.create(faceDetectorModelPath, "", detectorSize);
         }
-        return faceDetector;
+        return fd;
     }
 
     /**
      * Sets the input size of the FaceDetectorYN object.
      * 
-     * @param faceDetector Face detector to configure.
+     * @param fd Face detector to configure.
      * @param width The width of the image for the detector to be used on.
      * @param height The height of the image for the detector to be used on.
      */
-    public void setDetectorInputSize(
-        FaceDetectorYN faceDetector,
-        int width,
-        int height
-    ) {
+    public void setDetectorInputSize(FaceDetectorYN fd, int width, int height) {
         try (Size detectorSize = new Size(width, height)) {
-            faceDetector.setInputSize(detectorSize);
+            fd.setInputSize(detectorSize);
         }
     }
 
     /**
-     * Allocates and returns a Mat containing face detection data after
-     * performing face detection on an image. The face detector's internal
-     * input size parameter is modified as a result of this call, so no need to
-     * manually set the input size before calling this method. <p>
+     * Allocates and returns a Mat representing face box data after performing
+     * face detection on an image. The face detector's internal input size
+     * parameter is modified as a result of this call, so no need to manually
+     * set the input size before calling this method. <p>
      * 
      * It is the caller's responsibility to properly deallocate the
      * returned Mat. <p>
@@ -87,25 +82,23 @@ public class FaceDetectorService {
      * for details.
      * 
      * @param imgBytes Byte array of the image to detect faces from.
-     * @param faceDetector YuNet face detector model.
+     * @param fd YuNet face detector model.
      * @return See {@link #detectFaces(Mat, String)}
      * @throws NullPointerException If any arguments are null.
-     * @throws IllegalArgumentException If the face detector path is invalid.
-     * @throws IOException If the image is empty or invalid, or for general I/O
-     *                     errors.
+     * @throws IllegalArgumentException If the face detector path is invalid or
+     *                                  the image is empty or invalid.
+     * @throws IOException For general I/O errors.
      */
     public Mat detectFaces(
         byte[] imgBytes,
-        FaceDetectorYN faceDetector
+        FaceDetectorYN fd
     ) throws IOException {
-        if (imgBytes == null) {
-            throw new NullPointerException("Image byte array");
-        }
-        File tempInputFile = File.createTempFile("tempInputFile", null);
+        Objects.requireNonNull(imgBytes, "Image byte array");
+        File tempInputFile = File.createTempFile("inputImg", null);
         try (OutputStream fileOutStream = new FileOutputStream(tempInputFile)) {
             fileOutStream.write(imgBytes);
             fileOutStream.flush();
-            return detectFaces(tempInputFile.getAbsolutePath(), faceDetector);
+            return detectFaces(tempInputFile.getAbsolutePath(), fd);
         }
         finally {
             if (tempInputFile != null) {
@@ -115,10 +108,10 @@ public class FaceDetectorService {
     }
 
     /**
-     * Allocates and returns a Mat containing face detection data after
-     * performing face detection on an image. The face detector's internal
-     * input size parameter is modified as a result of this call, so no need to
-     * manually set the input size before calling this method. <p>
+     * Allocates and returns a Mat representing face box data after performing
+     * face detection on an image. The face detector's internal input size
+     * parameter is modified as a result of this call, so no need to manually
+     * set the input size before calling this method. <p>
      * 
      * It is the caller's responsibility to properly deallocate the
      * returned Mat. <p>
@@ -127,24 +120,18 @@ public class FaceDetectorService {
      * for details.
      * 
      * @param imgPath Path of the image to detect faces from.
-     * @param faceDetector YuNet face detector model.
+     * @param fd YuNet face detector model.
      * @return See {@link #detectFaces(Mat, String)}
      * @throws NullPointerException If any arguments are null.
-     * @throws IllegalArgumentException If the face detector path is invalid.
-     * @throws IOException If the image is empty or invalid, or for general I/O
-     *                     errors.
+     * @throws IllegalArgumentException If the face detector path is invalid or
+     *                                  the image is empty or invalid.
      */
-    public Mat detectFaces(
-        String imgPath,
-        FaceDetectorYN faceDetector
-    ) throws IOException {
-        if (imgPath == null) {
-            throw new NullPointerException("Image path");
-        }
+    public Mat detectFaces(String imgPath, FaceDetectorYN fd) {
+        Objects.requireNonNull(imgPath, "Image path");
         Mat imgMat = null;
         try {
             imgMat = imread(imgPath);
-            return detectFaces(imgMat, faceDetector);
+            return detectFaces(imgMat, fd);
         }
         finally {
             if (imgMat != null) {
@@ -154,10 +141,10 @@ public class FaceDetectorService {
     }
 
     /**
-     * Allocates and returns a Mat containing face detection data after
-     * performing face detection on an image. The face detector's internal
-     * input size parameter is modified as a result of this call, so no need to
-     * manually set the input size before calling this method. <p>
+     * Allocates and returns a Mat representing face box data after performing
+     * face detection on an image. The face detector's internal input size
+     * parameter is modified as a result of this call, so no need to manually
+     * set the input size before calling this method. <p>
      * 
      * The original Mat is not modified or deallocated as a result of the
      * operation; it is the responsibility of the caller to later deallocate it
@@ -167,7 +154,7 @@ public class FaceDetectorService {
      * for details.
      * 
      * @param imgMat Image Mat to detect faces from.
-     * @param faceDetector YuNet face detector model.
+     * @param fd YuNet face detector model.
      * @return A 2D Mat of shape [num_faces, 15]
      *         <ul>
      *           <li> 0-1:   x, y of bounding box top left corner
@@ -180,22 +167,14 @@ public class FaceDetectorService {
      *           <li> 14:    face score
      *         </ul>
      * @throws NullPointerException If any arguments are null.
-     * @throws IllegalArgumentException If the face detector path is invalid.
-     * @throws IOException If the image is empty or invalid, or for general I/O
-     *                     errors.
+     * @throws IllegalArgumentException If the face detector path is invalid or
+     *                                  the image is empty or invalid.
      */
-    public Mat detectFaces(
-        Mat imgMat,
-        FaceDetectorYN faceDetector
-    ) throws IOException {
-        if (imgMat == null) {
-            throw new NullPointerException("Image Mat");
-        }
-        if (faceDetector == null) {
-            throw new NullPointerException("Face detector model");
-        }
-        if (imgMat.data() == null || imgMat.rows() <= 0 || imgMat.cols() <= 0) {
-            throw new IOException("Invalid image Mat");
+    public Mat detectFaces(Mat imgMat, FaceDetectorYN fd) {
+        Objects.requireNonNull(imgMat, "Image Mat");
+        Objects.requireNonNull(fd, "Face detector model");
+        if (imgMat.empty()) {
+            throw new IllegalArgumentException("Invalid image Mat");
         }
         Mat aggResult = new Mat(0, 15, 5),
             tempImgMat = imgMat.clone(),
@@ -206,12 +185,12 @@ public class FaceDetectorService {
         do {
             try {
                 setDetectorInputSize(
-                    faceDetector,
+                    fd,
                     tempImgMat.cols(),
                     tempImgMat.rows()
                 );
                 tempDetectResult = new Mat();
-                faceDetector.detect(tempImgMat, tempDetectResult);
+                fd.detect(tempImgMat, tempDetectResult);
                 if (tempDetectResult.rows() > 0) {
                     // Maps face detection results to original image
                     if (scaleFactor != 1.0) {
@@ -223,7 +202,10 @@ public class FaceDetectorService {
                                     indexer.put(
                                         i,
                                         j,
-                                        Math.round(indexer.get(i, j) / scaleFactor)
+                                        Math.round(
+                                            indexer.get(i, j)
+                                            / scaleFactor
+                                        )
                                     );
                                 }
                             }

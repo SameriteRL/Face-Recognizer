@@ -1,20 +1,14 @@
 package raymond.service;
 
-// import static org.bytedeco.opencv.global.opencv_imgcodecs.imread;
-
-// import java.io.File;
-// import java.io.FileOutputStream;
-// import java.io.IOException;
-// import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import org.bytedeco.opencv.opencv_core.Mat;
-// import org.bytedeco.opencv.opencv_objdetect.FaceDetectorYN;
 import org.bytedeco.opencv.opencv_objdetect.FaceRecognizerSF;
-// import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -37,14 +31,8 @@ import raymond.classes.FaceBox;
 @Service
 public class FacePredictorService {
 
-    // @Autowired
-    // private FaceDetectorService faceDetectorService;
-
-    // @Autowired
-    // private ImageService imageService;
-
-    // @Autowired
-    // private MatService matService;
+    @Autowired
+    private MatService matService;
 
     @Value("${app.service.facerecognizerpath}")
     private String faceRecognizerModelPath;
@@ -53,14 +41,174 @@ public class FacePredictorService {
      * Creates a new FaceRecognizerSF object.
      * 
      * It is the caller's responsibility to later deallocate the face
-     * recognizer properly.
+     * recognizer.
      * 
      * @return A new FaceDetectorSF object.
      */
     public FaceRecognizerSF createFaceRecognizer() {
-        FaceRecognizerSF faceRecognizer =
+        FaceRecognizerSF fr =
             FaceRecognizerSF.create(faceRecognizerModelPath, "");
-        return faceRecognizer;
+        return fr;
+    }
+
+    /**
+     * Identifies the target face within the given test image. If the target
+     * face cannot be identified in the test image, the method returns null.
+     * Note that not all image formats are supported; see
+     * {@link #FacePredictor} for details. <p>
+     * 
+     * The arguments are not modified or deallocated as a result of the
+     * operation; it is the caller's responsibility to later deallocate them.
+     * 
+     * @param targetFaceImg Source image Mat of the target face.
+     * @param targetFaceBox Face box of the target face determined using the
+     *                      YuNet face detection model.
+     * @param testImg Source image Mat of the test image.
+     * @param testFaceBoxes Face boxes of the target face determined using the
+     *                      YuNet face detection model.
+     * @param fr SFace face recognition model.
+     * @return A FaceBox representing the best match face from the test image,
+     *         if any matches exist.
+     * @throws NullPointerException If any arguments are null.
+     * @throws IllegalArgumentException If any Mats are invalid.
+     */
+    public FaceBox predictFace(
+        Mat targetFaceImg,
+        Mat targetFaceBox,
+        Mat testImg,
+        Mat testFaceBoxes,
+        FaceRecognizerSF fr
+    ) {
+        Objects.requireNonNull(targetFaceImg, "Target face Mat");
+        Objects.requireNonNull(targetFaceBox, "Target image face boxes");
+        Objects.requireNonNull(testImg, "Test image Mat");
+        Objects.requireNonNull(testFaceBoxes, "Test image face boxes");
+        Objects.requireNonNull(fr, "Face recognizer model");
+        if (targetFaceImg.empty()) {
+            throw new IllegalArgumentException("Invalid target face image");
+        }
+        if (targetFaceBox.empty()) {
+            throw new IllegalArgumentException("Invalid target face boxes");
+        }
+        if (testImg.empty()) {
+            throw new IllegalArgumentException("Invalid test image");
+        }
+        if (testFaceBoxes.empty()) {
+            throw new IllegalArgumentException("Invalid test face boxes");
+        }
+        Mat targetFeature = null;
+        try {
+            targetFeature = matService.createFeatureMat(
+                targetFaceImg,
+                targetFaceBox,
+                fr
+            );
+            double maxScore = Double.MIN_VALUE;
+            Mat testFeature = null, predictedFaceBox = null;
+            for (int i = 0; i < testFaceBoxes.rows(); ++i) {
+                double cosScore = Double.MIN_VALUE;
+                try {
+                    testFeature = matService.createFeatureMat(
+                        testImg,
+                        testFaceBoxes.row(i),
+                        fr
+                    );
+                    cosScore = fr.match(
+                        targetFeature,
+                        testFeature,
+                        FaceRecognizerSF.FR_COSINE
+                    );
+                }
+                finally {
+                    if (testFeature != null) {
+                        testFeature.deallocate();
+                    }
+                }
+                // Mean cosine distance >= 0.363 implies exact match.
+                // Otherwise, this face is ignored.
+                if (cosScore > 0.363 && cosScore > maxScore) {
+                    maxScore = cosScore;
+                    predictedFaceBox = testFaceBoxes.row(i);
+                }
+            }
+            if (predictedFaceBox == null) {
+                return null;
+            }
+            FaceBox faceBox = new FaceBox(predictedFaceBox);
+            faceBox.label = "you";
+            faceBox.predictScore = maxScore;
+            return faceBox;
+        }
+        finally {
+            if (targetFeature != null) {
+                targetFeature.deallocate();
+            }
+        }
+    }
+
+    /**
+     * Identifies faces in the map of face boxes and corresponding face
+     * feature Mats by comparing them against a set of known faces. Note that
+     * not all image formats are supported; see {@link #FacePredictor} for
+     * details. <p>
+     * 
+     * The arguments are not modified or deallocated as a result of the
+     * operation; it is the caller's responsibility to later deallocate them.
+     * 
+     * @param testImg Source image Mat.
+     * @param testImgFaceBoxes Face detection result Mat.
+     * @param knownFaceFeatures Map of known subjects and their corresponding
+     *                          facial feature Mats.
+     * @param fr SFace face recognition model.
+     * @return A list of regions of interest (ROIs), each one describing the
+     *         coordinates + dimensions of each face as well as the predicted
+     *         label and confidence score associated with it.
+     * @throws NullPointerException If any arguments are null.
+     * @throws IllegalArgumentException If the test image or face boxes Mat are
+     *                                  invalid.
+     */
+    public List<FaceBox> predictFaces(
+        Mat testImg,
+        Mat testImgFaceBoxes,
+        Map<String, List<Mat>> knownFaceFeatures,
+        FaceRecognizerSF fr
+    ) {
+        Objects.requireNonNull(testImg, "Source image Mat");
+        Objects.requireNonNull(testImgFaceBoxes, "Detect results Mat");
+        Objects.requireNonNull(knownFaceFeatures, "Known face features map");
+        Objects.requireNonNull(fr, "Face recognizer model");
+        if (testImg.empty()) {
+            throw new IllegalArgumentException("Invalid test image");
+        }
+        if (testImgFaceBoxes.empty()) {
+            throw new IllegalArgumentException("Invalid test image face boxes");
+        }
+        Map<Mat, Mat> faceBoxToFaceFeature = new HashMap<>();
+        try {
+            for (int i = 0; i < testImgFaceBoxes.rows(); ++i) {
+                faceBoxToFaceFeature.put(
+                    testImgFaceBoxes.row(i),
+                    matService.createFeatureMat(
+                        testImg,
+                        testImgFaceBoxes.row(i),
+                        fr
+                    )
+                );
+            }
+            return predictFaces(
+                faceBoxToFaceFeature,
+                knownFaceFeatures,
+                fr
+            );
+        }
+        finally {
+            for (Mat detectResult: faceBoxToFaceFeature.keySet()) {
+                detectResult.deallocate();
+            }
+            for (Mat featureMat: faceBoxToFaceFeature.values()) {
+                featureMat.deallocate();
+            }
+        }
     }
 
     /**
@@ -69,15 +217,14 @@ public class FacePredictorService {
      * not all image formats are supported; see {@link #FacePredictor} for
      * details. <p>
      * 
-     * The test faces map and known faces map are not modified or deallocated
-     * as a result of the operation; it is the caller's responsibility to later
-     * deallocate the two maps.
+     * The arguments are not modified or deallocated as a result of the
+     * operation; it is the caller's responsibility to later deallocate them.
      * 
-     * @param testFaces Map of detection result Mats (typically one row) and
-     *                  face feature Mats.
+     * @param testFaces Map of face box Mats and their corresponding face
+     *                  feature Mats.
      * @param knownFaceFeatures Map of known subjects and their corresponding
      *                          facial feature Mats.
-     * @param faceRecognizer SFace face recognizer model.
+     * @param fr SFace face recognition model.
      * @return A list of regions of interest (ROIs), each one describing the
      *         coordinates + dimensions of each face as well as the predicted
      *         label and confidence score associated with it.
@@ -86,24 +233,18 @@ public class FacePredictorService {
     public List<FaceBox> predictFaces(
         Map<Mat, Mat> testFaces,
         Map<String, List<Mat>> knownFaceFeatures,
-        FaceRecognizerSF faceRecognizer
+        FaceRecognizerSF fr
     ) {
-        if (testFaces == null) {
-            throw new NullPointerException("Test faces map");
-        }
-        if (knownFaceFeatures == null) {
-            throw new NullPointerException("Known faces map");
-        }
-        if (faceRecognizer == null) {
-            throw new NullPointerException("Face recognizer model");
-        }
+        Objects.requireNonNull(testFaces, "Test faces map");
+        Objects.requireNonNull(knownFaceFeatures, "Known face features map");
+        Objects.requireNonNull(fr, "Face recognizer model");
         Map<String, FaceBox> bestMatches = new HashMap<>();
         for (Mat detectResult: testFaces.keySet()) {
             for (String subjName: knownFaceFeatures.keySet()) {
                 List<Mat> subjFtMatList = knownFaceFeatures.get(subjName);
                 double cosScore = 0.0;
                 for (Mat subjFtMat: subjFtMatList) {
-                    cosScore += faceRecognizer.match(
+                    cosScore += fr.match(
                         testFaces.get(detectResult),
                         subjFtMat,
                         FaceRecognizerSF.FR_COSINE
@@ -125,147 +266,4 @@ public class FacePredictorService {
         }
         return new ArrayList<>(bestMatches.values());
     }
-
-    /**
-     * Identifies faces in the test image by comparing them against a set of
-     * known faces. Note that not all image formats are supported; see
-     * {@link #FacePredictor} for details. <p>
-     * 
-     * The known faces map is not modified or deallocated as a result of the
-     * operation; it is the caller's responsibility to later deallocate the
-     * list of Mats in the given known faces map.
-     * 
-     * @param testImgBytes Byte array of the image to predict faces from.
-     * @param knownFaces Map of known subjects and their corresponding facial
-     *                   feature Mats.
-     * @param faceDetector YuNet face detection model.
-     * @param faceRecognizer SFace face recognition model.
-     * @return A list of regions of interest (ROIs), each one describing the
-     *         coordinates + dimensions of each face as well as the predicted
-     *         label and confidence score associated with it.
-     * @throws NullPointerException If any arguments are null.
-     * @throws IOException If the image is invalid or for general I/O errors.
-     */
-    // public List<FaceBox> predictFaces(
-    //     byte[] testImgBytes,
-    //     Map<String, List<Mat>> knownFaces,
-    //     FaceDetectorYN faceDetector,
-    //     FaceRecognizerSF faceRecognizer
-    // ) throws IOException {
-    //     if (testImgBytes == null) {
-    //         throw new NullPointerException("Test image byte array");
-    //     }
-    //     File tempInputFile = File.createTempFile("tempInputImg", null);
-    //     try (OutputStream outStream = new FileOutputStream(tempInputFile)) {
-    //         outStream.write(testImgBytes);
-    //         outStream.flush();
-    //         return predictFaces(
-    //             tempInputFile.getAbsolutePath(),
-    //             knownFaces,
-    //             faceDetector,
-    //             faceRecognizer
-    //         );
-    //     }
-    //     finally {
-    //         tempInputFile.delete();
-    //     }
-    // }
-
-    /**
-     * Identifies faces in the test image by comparing them against a set of
-     * known faces. Note that not all image formats are supported; see
-     * {@link #FacePredictor} for details. <p>
-     * 
-     * The known faces map is not modified or deallocated as a result of the
-     * operation; it is the caller's responsibility to later deallocate the
-     * list of Mats in the given known faces map.
-     * 
-     * @param testImgPath Path of the test image to predict faces from.
-     * @param knownFaces Map of known subjects and their corresponding facial
-     *                   feature Mats.
-     * @param faceDetector YuNet face detection model.
-     * @param faceRecognizer SFace face recognition model.
-     * @return A list of regions of interest (ROIs), each one describing the
-     *         coordinates + dimensions of each face as well as the predicted
-     *         label and confidence score associated with it.
-     * @throws NullPointerException If any arguments are null.
-     * @throws IOException If the image is invalid or for general I/O errors.
-     */
-    // public List<FaceBox> predictFaces(
-    //     String testImgPath,
-    //     Map<String, List<Mat>> knownFaceFeatures,
-    //     FaceDetectorYN faceDetector,
-    //     FaceRecognizerSF faceRecognizer
-    // ) throws IOException {
-    //     if (testImgPath == null) {
-    //         throw new NullPointerException("Test image path");
-    //     }
-    //     if (knownFaceFeatures == null) {
-    //         throw new NullPointerException("Known faces map");
-    //     }
-    //     if (faceDetector == null) {
-    //         throw new NullPointerException("Face detector model");
-    //     }
-    //     if (faceRecognizer == null) {
-    //         throw new NullPointerException("Face recognizer model");
-    //     }
-    //     List<FaceBox> identifiedFaces = new ArrayList<>();
-    //     Mat testImgMat = null, testRoiMat = null, testFeatureMat = null;
-    //     try {
-    //         testImgMat = imread(testImgPath);
-    //         if (testImgMat.data() == null
-    //                 || testImgMat.rows() <= 0
-    //                 || testImgMat.cols() <= 0
-    //         ) {
-    //             throw new RuntimeException("Invalid test image");
-    //         }
-    //         testRoiMat =
-    //             faceDetectorService.detectFaces(testImgPath, faceDetector);
-    //         for (int i = 0; i < testRoiMat.rows(); ++i) {
-    //             try {
-    //                 testFeatureMat = matService.getFeatureMat(
-    //                     faceRecognizer,
-    //                     testImgMat,
-    //                     testRoiMat.row(i)
-    //                 );
-    //                 for (String subjName: knownFaceFeatures.keySet()) {
-    //                     List<Mat> subjFeatureMatList = knownFaceFeatures.get(subjName);
-    //                     double cosScore = 0;
-    //                     for (Mat subjFeatureMat: subjFeatureMatList) {
-    //                         cosScore += faceRecognizer.match(
-    //                             testFeatureMat,
-    //                             subjFeatureMat,
-    //                             FaceRecognizerSF.FR_COSINE
-    //                         );
-    //                     }
-    //                     double avgCosScore =
-    //                         cosScore / subjFeatureMatList.size();
-    //                     // Mean cosine distance >= 0.363 implies exact match.
-    //                     // Otherwise, this face is ignored.
-    //                     if (avgCosScore >= 0.363) {
-    //                         FaceBox roi = new FaceBox(i, testRoiMat);
-    //                         roi.label = subjName;
-    //                         roi.predictScore = avgCosScore;
-    //                         identifiedFaces.add(roi);
-    //                     }
-    //                 }
-    //             }
-    //             finally {
-    //                 if (testFeatureMat != null) {
-    //                     testFeatureMat.deallocate();
-    //                     testFeatureMat = null;
-    //                 }
-    //             }
-    //         }
-    //     }
-    //     finally {
-    //         if (testImgMat != null) {
-    //             testImgMat.deallocate();
-    //         }
-    //         if (testRoiMat != null) {
-    //             testRoiMat.deallocate();
-    //         }
-    //     }
-    //     return identifiedFaces;
-    // }
 }

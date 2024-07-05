@@ -1,5 +1,7 @@
 package raymond.utils;
 
+import java.util.Objects;
+
 public class StringUtils {
     
     /**
@@ -17,9 +19,7 @@ public class StringUtils {
      * @throws NullPointerException If the path is null.
      */
     public static String getExtension(String path) {
-        if (path == null) {
-            throw new NullPointerException("Path is null");
-        }
+        Objects.requireNonNull(path);
         int extSepIdx = path.lastIndexOf('.');
         if (extSepIdx == -1) {
             return "";
@@ -42,9 +42,7 @@ public class StringUtils {
      * @throws NullPointerException If the path is null.
      */
     public static String getExtensionWithDot(String path) {
-        if (path == null) {
-            throw new NullPointerException("Path is null");
-        }
+        Objects.requireNonNull(path);
         int extSepIdx = path.lastIndexOf('.');
         if (extSepIdx == -1) {
             return "";
@@ -70,9 +68,7 @@ public class StringUtils {
      * @throws NullPointerException If the path is null.
      */
     public static String getStem(String path) {
-        if (path == null) {
-            throw new NullPointerException("Path is null");
-        }
+        Objects.requireNonNull(path);
         int lastSepIdx = path.lastIndexOf('/');
         String baseName = path.substring(lastSepIdx + 1);
         int extSepIdx = baseName.lastIndexOf('.');

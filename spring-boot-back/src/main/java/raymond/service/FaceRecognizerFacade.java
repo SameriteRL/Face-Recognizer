@@ -6,8 +6,6 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.FilenameFilter;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -39,9 +37,6 @@ public class FaceRecognizerFacade {
     private ImageService imageService;
 
     @Autowired
-    private FileService fileService;
-
-    @Autowired
     private MatService matService;
 
     private static final Set<String> acceptedFormats = new HashSet<String>(
@@ -59,8 +54,8 @@ public class FaceRecognizerFacade {
     };
     
     /**
-     * Orchestrates the facial recognition from start to finish, returning the
-     * visualized results as a byte array.
+     * Orchestrates the facial recognition process from start to finish,
+     * returning the visualized result as a byte array.
      * 
      * @param faceImg Face image to pinpoint in the test image.
      * @param testImg Test image to pinpoint the desired face on.
@@ -73,83 +68,45 @@ public class FaceRecognizerFacade {
     ) throws IOException {
         String testImgFormat =
             StringUtils.getExtensionWithDot(testImg.getOriginalFilename());
-        FaceDetectorYN faceDetector = null;
-        FaceRecognizerSF faceRecognizer = null;
-        Path tempFacesDirPath = null, testImgPath = null;
-        Map<Mat, Mat> detectResultFaceFeature = null;
-        Map<String, List<Mat>> knownFaces = null;
+        String faceImgFormat =
+            StringUtils.getExtensionWithDot(faceImg.getOriginalFilename());
+        FaceDetectorYN fd = null;
+        FaceRecognizerSF fr = null;
         try {
-            faceDetector = faceDetectorService.createFaceDetector();
-            faceRecognizer = facePredictorService.createFaceRecognizer();
-            tempFacesDirPath = Files.createTempDirectory("known-faces");
-            Path faceDirPath =
-                Files.createDirectories(tempFacesDirPath.resolve("you"));
-            Path faceImgPath =
-                Files.createTempFile(faceDirPath, null, testImgFormat);
-            try (FileOutputStream fostr =
-                    new FileOutputStream(faceImgPath.toFile())
-            ) {
-                fostr.write(faceImg.getBytes());
+            fd = faceDetectorService.createFaceDetector();
+            fr = facePredictorService.createFaceRecognizer();
+            File tempTestImgFile = File.createTempFile("testImg", testImgFormat);
+            File tempFaceImgFile = File.createTempFile("faceImg", faceImgFormat);
+            try (FileOutputStream fos = new FileOutputStream(tempTestImgFile)) {
+                fos.write(testImg.getBytes());
             }
-            testImgPath =
-                Files.createTempFile(tempFacesDirPath, null, testImgFormat);
-            try (FileOutputStream fostr =
-                    new FileOutputStream(testImgPath.toFile())
-            ) {
-                fostr.write(testImg.getBytes());
+            try (FileOutputStream fos = new FileOutputStream(tempFaceImgFile)) {
+                fos.write(faceImg.getBytes());
             }
-            Mat testImgMat = imread(testImgPath.toString());
-            detectResultFaceFeature = new HashMap<>();
-            Mat testDetectResult =
-                faceDetectorService.detectFaces(testImgMat, faceDetector);
-            for (int i = 0; i < testDetectResult.rows(); ++i) {
-                Mat testDetectResultRow = testDetectResult.row(i);
-                detectResultFaceFeature.put(
-                    testDetectResultRow,
-                    matService.getFeatureMat(
-                        faceRecognizer,
-                        testImgMat,
-                        testDetectResultRow
-                    )
-                );
-            }
-            knownFaces = parseKnownFaces(
-                tempFacesDirPath.toString(),
-                faceDetector,
-                faceRecognizer
-            );
-            List<FaceBox> faceBoxList = facePredictorService.predictFaces(
-                detectResultFaceFeature,
-                knownFaces,
-                faceRecognizer
+            Mat testImgMat = imread(tempTestImgFile.getAbsolutePath());
+            Mat testImgFaceBoxes =
+                faceDetectorService.detectFaces(testImgMat, fd);
+            Mat faceImgMat = imread(tempFaceImgFile.getAbsolutePath());
+            Mat faceImgFaceBoxes =
+                faceDetectorService.detectFaces(faceImgMat, fd).row(0);
+            FaceBox predictedFaceBox = facePredictorService.predictFace(
+                faceImgMat,
+                faceImgFaceBoxes,
+                testImgMat,
+                testImgFaceBoxes,
+                fr
             );
             return imageService.visualizeBoxes(
-                testImgPath.toString(),
-                faceBoxList
+                tempTestImgFile.getAbsolutePath(),
+                Arrays.asList(predictedFaceBox)
             );
         }
         finally {
-            if (faceDetector != null) {
-                faceDetector.deallocate();
+            if (fd != null) {
+                fd.deallocate();
             }
-            if (faceRecognizer != null) {
-                faceRecognizer.deallocate();
-            }
-            for (Mat detectResult: detectResultFaceFeature.keySet()) {
-                detectResult.deallocate();
-            }
-            for (Mat faceFeature: detectResultFaceFeature.values()) {
-                faceFeature.deallocate();
-            }
-            for (List<Mat> matList: knownFaces.values()) {
-                for (Mat mat: matList) {
-                    if (mat != null) {
-                        mat.deallocate();
-                    }
-                }
-            }
-            if (tempFacesDirPath != null) {
-                fileService.deleteDirRecursive(tempFacesDirPath);
+            if (fr != null) {
+                fr.deallocate();
             }
         }
     }
@@ -179,8 +136,8 @@ public class FaceRecognizerFacade {
      * </code> </pre>
      * 
      * @param facesDirPath Path of the known faces directory.
-     * @param faceDetector YuNet face detection model.
-     * @param faceRecognizer SFace face recognition model.
+     * @param fd YuNet face detection model.
+     * @param fr SFace face recognition model.
      * @throws NullPointerException If any arguments are null.
      * @throws IllegalArgumentException If the faces directory is not a
      *                                  directory or does not exist.
@@ -191,8 +148,8 @@ public class FaceRecognizerFacade {
      */
     public Map<String, List<Mat>> parseKnownFaces(
         String facesDirPath,
-        FaceDetectorYN faceDetector,
-        FaceRecognizerSF faceRecognizer
+        FaceDetectorYN fd,
+        FaceRecognizerSF fr
     ) throws IOException {
         File rootDir = new File(facesDirPath);
         if (!rootDir.isDirectory()) {
@@ -214,15 +171,13 @@ public class FaceRecognizerFacade {
                 knownFaces.put(subDirName, featureMatList);
                 for (File imgFile: imgFileArr) {
                     imgMat = imread(imgFile.getAbsolutePath());
-                    detectResult =
-                        faceDetectorService.detectFaces(imgMat, faceDetector);
+                    detectResult = faceDetectorService.detectFaces(imgMat, fd);
                     readImgs += detectResult.rows();
                     featureMatList.addAll(
-                        matService.getFeatureMats(
-                            faceDetector,
-                            faceRecognizer,
+                        matService.createFeatureMats(
                             imgMat,
-                            detectResult
+                            detectResult,
+                            fr
                         )
                     );
                 }

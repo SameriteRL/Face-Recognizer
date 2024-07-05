@@ -5,15 +5,61 @@ import static org.bytedeco.opencv.global.opencv_imgproc.resize;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import org.bytedeco.opencv.opencv_core.Mat;
 import org.bytedeco.opencv.opencv_core.Size;
-import org.bytedeco.opencv.opencv_objdetect.FaceDetectorYN;
 import org.bytedeco.opencv.opencv_objdetect.FaceRecognizerSF;
 import org.springframework.stereotype.Service;
 
 @Service
 public class MatService {
+
+    /**
+     * Allocates and returns a new Mat by resizing an image Mat using the
+     * specified scale factor. <p>
+     * 
+     * For example, a scale factor of 0.5 would return an image with half the
+     * original width and height, and a factor of 1.5 would return an image
+     * with 1.5 times the original width and height. <p>
+     * 
+     * The original Mat is not modified or deallocated as a result of the
+     * operation; it is the responsibility of the caller to later deallocate it
+     * as well as the returned Mat.
+     * 
+     * @param src Source image Mat.
+     * @param scale Factor to scale the image by.
+     * @return The resized version of the image.
+     * @throws NullPointerException If the image Mat is null.
+     * @throws IllegalArgumentException If the image Mat is invalid or the
+     *                                  scale is a negative value.
+     */
+    public Mat resizeImg(Mat src, double scale) {
+        Objects.requireNonNull(src, "Source image Mat");
+        if (src.empty()) {
+            throw new IllegalArgumentException("Invalid source image Mat");
+        }
+        if (scale <= 0) {
+            throw new IllegalArgumentException("Scale must be positive");
+        }
+        if (scale == 1.0) {
+            return src.clone();
+        }
+        Mat resizedImg = null;
+        int newWidth = Math.toIntExact(Math.round(src.cols() * scale));
+        int newHeight = Math.toIntExact(Math.round(src.rows() * scale));
+        try (Size newSize = new Size(newWidth, newHeight)) {
+            resizedImg = new Mat(newSize, src.type());
+            resize(src, resizedImg, newSize);
+        }
+        catch (Exception e) {
+            if (resizedImg != null) {
+                resizedImg.deallocate();
+            }
+            throw e;
+        }
+        return resizedImg;
+    }
 
     /**
      * Allocates and returns a new Mat by resizing an image Mat to the
@@ -27,10 +73,15 @@ public class MatService {
      * @param width The new desired width.
      * @param height The new desired height.
      * @return The resized version of the image.
-     * @throws IllegalArgumentException If either specified width or height is
-     *                                  not a positive value.
+     * @throws NullPointerException If the image Mat is null.
+     * @throws IllegalArgumentException If the image Mat is invalid or either
+     *                                  specified width or height is negative.
      */
     public Mat resizeImg(Mat src, int width, int height) {
+        Objects.requireNonNull(src, "Source image Mat");
+        if (src.empty()) {
+            throw new IllegalArgumentException("Invalid source image Mat");
+        }
         if (width <= 0) {
             throw new IllegalArgumentException("New width must be positive");
         }
@@ -55,143 +106,75 @@ public class MatService {
     }
 
     /**
-     * Allocates and returns a new Mat by resizing an image Mat using the
-     * specified scale factor. <p>
+     * Allocates and returns a list of all face feature Mats in an image.
+     * Requires a Mat with one or more face boxes determined using the YuNet
+     * face detection model. <p>
      * 
-     * For example, a scale factor of 0.5 would return an image with half the
-     * original width and height, and a factor of 1.5 would return an image
-     * with 1.5 times the original width and height. <p>
+     * The given Mats are not modified or deallocated as a result of the
+     * operation; it is the responsibility of the caller to later deallocate
+     * them as well as the list of returned Mats.
      * 
-     * The original Mat is not modified or deallocated as a result of the
-     * operation; it is the responsibility of the caller to later deallocate it
-     * as well as the returned Mat.
-     * 
-     * @param src Source image Mat.
-     * @param scale Factor to scale the image by.
-     * @return The resized version of the image.
-     * @throws IllegalArgumentException If the specified scale is not a
-     *                                  positive value.
-     */
-    public Mat resizeImg(Mat src, double scale) {
-        if (scale <= 0) {
-            throw new IllegalArgumentException("Scale must be a positive value");
-        }
-        if (scale == 1.0) {
-            return src.clone();
-        }
-        Mat resizedImg = null;
-        int newWidth = Math.toIntExact(Math.round(src.cols() * scale));
-        int newHeight = Math.toIntExact(Math.round(src.rows() * scale));
-        try (Size newSize = new Size(newWidth, newHeight)) {
-            resizedImg = new Mat(newSize, src.type());
-            resize(src, resizedImg, newSize);
-        }
-        catch (Exception e) {
-            if (resizedImg != null) {
-                resizedImg.deallocate();
-            }
-            throw e;
-        }
-        return resizedImg;
-    }
-
-    /**
-     * 
+     * @param srcImg Source image Mat.
+     * @param faceBoxes Mat of face boxes determined from the YuNet face
+     *                  detection model.
      * @param fd YuNet face detection model.
      * @param fr SFace face recognition model.
-     * @param srcMat Source image Mat.
-     * @param detectResult A Mat containing face detection results from the
-     *                     YuNet model.
      * @return A list of face feature Mats.
+     * @throws NullPointerException If any arguments are null.
      * @throws IOException If the image is empty or invalid, or for general
      *                     I/O errors.
      */
-    public List<Mat> getFeatureMats(
-        FaceDetectorYN fd,
-        FaceRecognizerSF fr,
-        Mat srcMat,
-        Mat detectResult
-    ) throws IOException {
+    public List<Mat> createFeatureMats(
+        Mat srcImg,
+        Mat faceBoxes,
+        FaceRecognizerSF fr
+    ) {
+        Objects.requireNonNull(srcImg, "Source image Mat");
+        Objects.requireNonNull(faceBoxes, "Face boxes Mat");
         List<Mat> featureMatList = new ArrayList<>();
-        try {
-            // Ideally one person per image, but multiple instances
-            // of the same person will still work.
-            for (int i = 0; i < detectResult.rows(); ++i) {
-                Mat featureMat = getFeatureMat(
-                    fr,
-                    srcMat,
-                    detectResult.row(i)
-                );
-                featureMatList.add(featureMat);
-            }
-        }
-        finally {
-            if (detectResult != null) {
-                detectResult.deallocate();
-                detectResult = null;
-            }
+        for (int i = 0; i < faceBoxes.rows(); ++i) {
+            featureMatList.add(
+                createFeatureMat(
+                    srcImg,
+                    faceBoxes.row(i),
+                    fr
+                )
+            );
         }
         return featureMatList;
     }
 
     /**
-     * Allocates and returns a face feature Mat of an image. Requires a SFace
-     * face recognizer as well as a Mat of face box coordinates and dimensions,
-     * typically determined using the YuNet face detection model. <p>
+     * Allocates and returns a face feature Mat of a face in an image. Requires
+     * a Mat of the face's bounding box coordinates and dimensions determined
+     * using the YuNet face detection model. <p>
      * 
-     * The original Mat is not modified or deallocated as a result of the
-     * operation; it is the responsibility of the caller to later deallocate it
-     * as well as the returned Mat.
-     * 
-     * @param recognizerModelPath Path of the SFace face recognizer model.
+     * The given Mats are not modified or deallocated as a result of the
+     * operation; it is the responsibility of the caller to later deallocate
+     * them as well as the returned Mat.
+     *
      * @param srcImg Source image, typically the whole original image.
-     * @param fBox Face box coordinates and dimensions on the source image,
-     *             typically one row of a Mat.
+     * @param faceBox Mat with one face box determined from the YuNet face
+     *                detection model.
+     * @param fr SFace face recognition model.
      * @return The feature Mat of the image.
+     * @throws NullPointerException If any arguments are null.
+     * @throws IllegalArgumentException If the provided face box Mat does not
+     *                                  have only one row.
      */
-    public Mat getFeatureMat(
-        String recognizerModelPath,
+    public Mat createFeatureMat(
         Mat srcImg,
-        Mat faceBox
+        Mat faceBox,
+        FaceRecognizerSF fr
     ) {
-        if (recognizerModelPath == null) {
-            throw new NullPointerException("Face recognizer model path");
+        Objects.requireNonNull(srcImg, "Source image Mat");
+        Objects.requireNonNull(faceBox, "Face box Mat");
+        Objects.requireNonNull(fr, "Face recognition model");
+        if (srcImg.empty()) {
+            throw new IllegalArgumentException("Source image Mat is empty");
         }
-        try (FaceRecognizerSF fr =
-                FaceRecognizerSF.create(recognizerModelPath, "")
-        ) {
-            return getFeatureMat(fr, srcImg, faceBox);
-        }
-    }
-
-    /**
-     * Allocates and returns a face feature Mat of an image. Requires a SFace
-     * face recognizer as well as a Mat of face box coordinates and dimensions,
-     * typically determined using the YuNet face detection model. <p>
-     * 
-     * The original Mat is not modified or deallocated as a result of the
-     * operation; it is the responsibility of the caller to later deallocate it
-     * as well as the returned Mat.
-     * 
-     * @param fr SFace face recognizer model.
-     * @param srcImg Source image, typically the whole original image.
-     * @param fBox Face box coordinates and dimensions on the source image,
-     *             typically one row of a Mat.
-     * @return The feature Mat of the image.
-     */
-    public Mat getFeatureMat(
-        FaceRecognizerSF fr,
-        Mat srcImg,
-        Mat faceBox
-    ) {
-        if (fr == null) {
-            throw new NullPointerException("Face recognizer model");
-        }
-        if (srcImg == null) {
-            throw new NullPointerException("Source image Mat");
-        }
-        if (faceBox == null) {
-            throw new NullPointerException("Face box Mat");
+        if (faceBox.rows() != 1) {
+            throw new IllegalArgumentException("Detect box may only have 1 row");
         }
         Mat alignedMat = null, featureMat = null;
         try {
