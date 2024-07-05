@@ -3,10 +3,22 @@
 import { useState } from "react";
 import axios from "axios";
 
-export default function Home() {
+const errorMessage = () => {
+  return (
+    <>
+      <p className="mb-5">An error occurred while processing your images!</p>
+      <ul>
+        <li>1. Make sure you've uploaded two image files.</li>
+        <li>2. Ensure at least one face is visible and as clear as possible in each image.</li>
+      </ul>
+    </>
+  )
+}
 
+export default function Home() {
   const [faceFile, setFaceFile] = useState(null);
   const [testFile, setTestFile] = useState(null);
+  const [showError, setShowError] = useState(false);
   const [imageSrc, setImageSrc] = useState("");
   const [formDisabled, setFormDisabled] = useState(false);
 
@@ -38,13 +50,18 @@ export default function Home() {
         const url = URL.createObjectURL(response.data);
         setImageSrc(url);
         console.log("Image rendered")
+        setShowError(false);
       }
       catch (error) {
         console.log("Error rendering image", error);
+        setImageSrc("");
+        setShowError(true);
       }
     }
     catch (error) {
       console.error("Error uploading file", error);
+      setImageSrc("");
+      setShowError(true);
     }
     setFormDisabled(false);
   };
@@ -55,14 +72,14 @@ export default function Home() {
         <label className="text-2xl">Upload a face less than 10MB</label>
         <input className="mb-7" type="file" accept="image/*" onChange={handleFaceFileChange} disabled={formDisabled} />
         <label className="text-2xl">Upload a test image less than 10MB</label>
-        <input className="mb-2" type="file" accept="image/*" onChange={handleTestFileChange} disabled={formDisabled} />
-        <button className="bg-red-700 text-white font-bold mt-5 py-2 px-4 rounded hover:bg-red-800" onClick={handleSubmit}>Submit</button>
+        <input className="mb-7" type="file" accept="image/*" onChange={handleTestFileChange} disabled={formDisabled} />
+        <button className="bg-red-700 text-white font-bold mb-4 py-2 px-4 rounded hover:bg-red-800" onClick={handleSubmit}>Submit</button>
       </form>
       {
-        imageSrc ?
+        imageSrc ? (
           <img src={imageSrc} width={500} height={500} />
-          :
-          <p>Waiting for output...</p>
+        ) : (
+          showError ? errorMessage() : <p>Waiting for output...</p>)
       }
     </div>
   );
