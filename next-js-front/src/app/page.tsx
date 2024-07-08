@@ -42,13 +42,14 @@ export default function Home() {
         formData,
         {
           headers: {"Content-Type": "multipart/form-data"},
-          responseType: "blob"
+          responseType: "json"
         }
       );
       console.log("Files uploaded");
       try {
-        const url = URL.createObjectURL(response.data);
-        setImageSrc(url);
+        const base64img = response.data.result;
+        const imgUrl = `data:image/jpeg;base64,${base64img}`;
+        setImageSrc(imgUrl);
         console.log("Image rendered")
         setShowError(false);
       }
