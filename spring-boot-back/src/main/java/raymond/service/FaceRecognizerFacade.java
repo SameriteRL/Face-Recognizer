@@ -16,7 +16,7 @@ import java.util.Set;
 
 import org.bytedeco.opencv.opencv_core.Mat;
 import org.bytedeco.opencv.opencv_objdetect.FaceDetectorYN;
-import org.bytedeco.opencv.opencv_objdetect.FaceRecognizerSF;
+import org.springframework.beans.factory.ObjectFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -28,16 +28,19 @@ import raymond.utils.StringUtils;
 public class FaceRecognizerFacade {
 
     @Autowired
-    private FaceDetectorService faceDetectorService;
+    private FaceDetectorService fdService;
 
     @Autowired
-    private FacePredictorService facePredictorService;
+    private FacePredictorService fpService;
 
     @Autowired
-    private ImageService imageService;
+    private ImageService imgService;
 
     @Autowired
     private MatService matService;
+
+    @Autowired
+    private ObjectFactory<FaceDetectorYN> fdFactory;
 
     private static final Set<String> acceptedFormats = new HashSet<String>(
         Arrays.asList(
@@ -67,48 +70,35 @@ public class FaceRecognizerFacade {
         MultipartFile testImg
     ) throws IOException {
         String testImgFormat =
-            StringUtils.getExtensionWithDot(testImg.getOriginalFilename());
+        StringUtils.getExtensionWithDot(testImg.getOriginalFilename());
         String faceImgFormat =
             StringUtils.getExtensionWithDot(faceImg.getOriginalFilename());
-        FaceDetectorYN fd = null;
-        FaceRecognizerSF fr = null;
-        try {
-            fd = faceDetectorService.createFaceDetector();
-            fr = facePredictorService.createFaceRecognizer();
-            File tempTestImgFile = File.createTempFile("testImg", testImgFormat);
-            File tempFaceImgFile = File.createTempFile("faceImg", faceImgFormat);
-            try (FileOutputStream fos = new FileOutputStream(tempTestImgFile)) {
-                fos.write(testImg.getBytes());
-            }
-            try (FileOutputStream fos = new FileOutputStream(tempFaceImgFile)) {
-                fos.write(faceImg.getBytes());
-            }
-            Mat testImgMat = imread(tempTestImgFile.getAbsolutePath());
-            Mat testImgFaceBoxes =
-                faceDetectorService.detectFaces(testImgMat, fd);
-            Mat faceImgMat = imread(tempFaceImgFile.getAbsolutePath());
-            Mat faceImgFaceBoxes =
-                faceDetectorService.detectFaces(faceImgMat, fd).row(0);
-            FaceBox predictedFaceBox = facePredictorService.predictFace(
-                faceImgMat,
-                faceImgFaceBoxes,
-                testImgMat,
-                testImgFaceBoxes,
-                fr
-            );
-            return imageService.visualizeBoxes(
-                tempTestImgFile.getAbsolutePath(),
-                Arrays.asList(predictedFaceBox)
-            );
+        File tempTestImgFile = File.createTempFile("testImg", testImgFormat);
+        File tempFaceImgFile = File.createTempFile("faceImg", faceImgFormat);
+        try (FileOutputStream fos = new FileOutputStream(tempTestImgFile)) {
+            fos.write(testImg.getBytes());
         }
-        finally {
-            if (fd != null) {
-                fd.deallocate();
-            }
-            if (fr != null) {
-                fr.deallocate();
-            }
+        try (FileOutputStream fos = new FileOutputStream(tempFaceImgFile)) {
+            fos.write(faceImg.getBytes());
         }
+        Mat testImgMat = imread(tempTestImgFile.getAbsolutePath());
+        Mat faceImgMat = imread(tempFaceImgFile.getAbsolutePath());
+        Mat testImgFaceBoxes = null,
+            faceImgFaceBoxes = null;
+        try (FaceDetectorYN fd = fdFactory.getObject()) {
+            testImgFaceBoxes = fdService.detectFaces(testImgMat, fd);
+            faceImgFaceBoxes = fdService.detectFaces(faceImgMat, fd).row(0);
+        }
+        FaceBox predictedFaceBox = fpService.predictFace(
+            faceImgMat,
+            faceImgFaceBoxes,
+            testImgMat,
+            testImgFaceBoxes
+        );
+        return imgService.visualizeBoxes(
+            tempTestImgFile.getAbsolutePath(),
+            Arrays.asList(predictedFaceBox)
+        );
     }
 
     /**
@@ -136,8 +126,6 @@ public class FaceRecognizerFacade {
      * </code> </pre>
      * 
      * @param facesDirPath Path of the known faces directory.
-     * @param fd YuNet face detection model.
-     * @param fr SFace face recognition model.
      * @throws NullPointerException If any arguments are null.
      * @throws IllegalArgumentException If the faces directory is not a
      *                                  directory or does not exist.
@@ -148,8 +136,7 @@ public class FaceRecognizerFacade {
      */
     public Map<String, List<Mat>> parseKnownFaces(
         String facesDirPath,
-        FaceDetectorYN fd,
-        FaceRecognizerSF fr
+        FaceDetectorYN fd
     ) throws IOException {
         File rootDir = new File(facesDirPath);
         if (!rootDir.isDirectory()) {
@@ -171,14 +158,10 @@ public class FaceRecognizerFacade {
                 knownFaces.put(subDirName, featureMatList);
                 for (File imgFile: imgFileArr) {
                     imgMat = imread(imgFile.getAbsolutePath());
-                    detectResult = faceDetectorService.detectFaces(imgMat, fd);
+                    detectResult = fdService.detectFaces(imgMat, fd);
                     readImgs += detectResult.rows();
                     featureMatList.addAll(
-                        matService.createFeatureMats(
-                            imgMat,
-                            detectResult,
-                            fr
-                        )
+                        matService.createFeatureMats(imgMat, detectResult)
                     );
                 }
             }
@@ -190,7 +173,7 @@ public class FaceRecognizerFacade {
             for (List<Mat> matList: knownFaces.values()) {
                 for (Mat mat: matList) {
                     if (mat != null) {
-                        mat.deallocate();
+                        mat.close();
                     }
                 }
             }
@@ -198,10 +181,10 @@ public class FaceRecognizerFacade {
         }
         finally {
             if (imgMat != null) {
-                imgMat.deallocate();
+                imgMat.close();
             }
             if (detectResult != null) {
-                detectResult.deallocate();
+                detectResult.close();
             }
         }
         return knownFaces;

@@ -9,7 +9,6 @@ import java.util.Objects;
 import org.bytedeco.opencv.opencv_core.Mat;
 import org.bytedeco.opencv.opencv_objdetect.FaceRecognizerSF;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import raymond.classes.FaceBox;
@@ -34,22 +33,8 @@ public class FacePredictorService {
     @Autowired
     private MatService matService;
 
-    @Value("${app.service.facerecognizerpath}")
-    private String faceRecognizerModelPath;
-
-    /**
-     * Creates a new FaceRecognizerSF object.
-     * 
-     * It is the caller's responsibility to later deallocate the face
-     * recognizer.
-     * 
-     * @return A new FaceDetectorSF object.
-     */
-    public FaceRecognizerSF createFaceRecognizer() {
-        FaceRecognizerSF fr =
-            FaceRecognizerSF.create(faceRecognizerModelPath, "");
-        return fr;
-    }
+    @Autowired
+    private FaceRecognizerSF fr;
 
     /**
      * Identifies the target face within the given test image. If the target
@@ -66,7 +51,6 @@ public class FacePredictorService {
      * @param testImg Source image Mat of the test image.
      * @param testFaceBoxes Face boxes of the target face determined using the
      *                      YuNet face detection model.
-     * @param fr SFace face recognition model.
      * @return A FaceBox representing the best match face from the test image,
      *         if any matches exist.
      * @throws NullPointerException If any arguments are null.
@@ -76,8 +60,7 @@ public class FacePredictorService {
         Mat targetFaceImg,
         Mat targetFaceBox,
         Mat testImg,
-        Mat testFaceBoxes,
-        FaceRecognizerSF fr
+        Mat testFaceBoxes
     ) {
         Objects.requireNonNull(targetFaceImg, "Target face Mat");
         Objects.requireNonNull(targetFaceBox, "Target image face boxes");
@@ -100,8 +83,7 @@ public class FacePredictorService {
         try {
             targetFeature = matService.createFeatureMat(
                 targetFaceImg,
-                targetFaceBox,
-                fr
+                targetFaceBox
             );
             double maxScore = Double.MIN_VALUE;
             Mat testFeature = null, predictedFaceBox = null;
@@ -110,8 +92,7 @@ public class FacePredictorService {
                 try {
                     testFeature = matService.createFeatureMat(
                         testImg,
-                        testFaceBoxes.row(i),
-                        fr
+                        testFaceBoxes.row(i)
                     );
                     cosScore = fr.match(
                         targetFeature,
@@ -121,7 +102,7 @@ public class FacePredictorService {
                 }
                 finally {
                     if (testFeature != null) {
-                        testFeature.deallocate();
+                        testFeature.close();
                     }
                 }
                 // Mean cosine distance >= 0.363 implies exact match.
@@ -141,7 +122,7 @@ public class FacePredictorService {
         }
         finally {
             if (targetFeature != null) {
-                targetFeature.deallocate();
+                targetFeature.close();
             }
         }
     }
@@ -159,7 +140,6 @@ public class FacePredictorService {
      * @param testImgFaceBoxes Face detection result Mat.
      * @param knownFaceFeatures Map of known subjects and their corresponding
      *                          facial feature Mats.
-     * @param fr SFace face recognition model.
      * @return A list of regions of interest (ROIs), each one describing the
      *         coordinates + dimensions of each face as well as the predicted
      *         label and confidence score associated with it.
@@ -170,8 +150,7 @@ public class FacePredictorService {
     public List<FaceBox> predictFaces(
         Mat testImg,
         Mat testImgFaceBoxes,
-        Map<String, List<Mat>> knownFaceFeatures,
-        FaceRecognizerSF fr
+        Map<String, List<Mat>> knownFaceFeatures
     ) {
         Objects.requireNonNull(testImg, "Source image Mat");
         Objects.requireNonNull(testImgFaceBoxes, "Detect results Mat");
@@ -190,23 +169,21 @@ public class FacePredictorService {
                     testImgFaceBoxes.row(i),
                     matService.createFeatureMat(
                         testImg,
-                        testImgFaceBoxes.row(i),
-                        fr
+                        testImgFaceBoxes.row(i)
                     )
                 );
             }
             return predictFaces(
                 faceBoxToFaceFeature,
-                knownFaceFeatures,
-                fr
+                knownFaceFeatures
             );
         }
         finally {
             for (Mat detectResult: faceBoxToFaceFeature.keySet()) {
-                detectResult.deallocate();
+                detectResult.close();
             }
             for (Mat featureMat: faceBoxToFaceFeature.values()) {
-                featureMat.deallocate();
+                featureMat.close();
             }
         }
     }
@@ -224,7 +201,6 @@ public class FacePredictorService {
      *                  feature Mats.
      * @param knownFaceFeatures Map of known subjects and their corresponding
      *                          facial feature Mats.
-     * @param fr SFace face recognition model.
      * @return A list of regions of interest (ROIs), each one describing the
      *         coordinates + dimensions of each face as well as the predicted
      *         label and confidence score associated with it.
@@ -232,8 +208,7 @@ public class FacePredictorService {
      */
     public List<FaceBox> predictFaces(
         Map<Mat, Mat> testFaces,
-        Map<String, List<Mat>> knownFaceFeatures,
-        FaceRecognizerSF fr
+        Map<String, List<Mat>> knownFaceFeatures
     ) {
         Objects.requireNonNull(testFaces, "Test faces map");
         Objects.requireNonNull(knownFaceFeatures, "Known face features map");

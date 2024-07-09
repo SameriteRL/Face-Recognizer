@@ -10,10 +10,14 @@ import java.util.Objects;
 import org.bytedeco.opencv.opencv_core.Mat;
 import org.bytedeco.opencv.opencv_core.Size;
 import org.bytedeco.opencv.opencv_objdetect.FaceRecognizerSF;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
 public class MatService {
+
+    @Autowired
+    private FaceRecognizerSF fr;
 
     /**
      * Allocates and returns a new Mat by resizing an image Mat using the
@@ -54,7 +58,7 @@ public class MatService {
         }
         catch (Exception e) {
             if (resizedImg != null) {
-                resizedImg.deallocate();
+                resizedImg.close();
             }
             throw e;
         }
@@ -98,7 +102,7 @@ public class MatService {
         }
         catch (Exception e) {
             if (resizedImg != null) {
-                resizedImg.deallocate();
+                resizedImg.close();
             }
             throw e;
         }
@@ -117,29 +121,17 @@ public class MatService {
      * @param srcImg Source image Mat.
      * @param faceBoxes Mat of face boxes determined from the YuNet face
      *                  detection model.
-     * @param fd YuNet face detection model.
-     * @param fr SFace face recognition model.
      * @return A list of face feature Mats.
      * @throws NullPointerException If any arguments are null.
      * @throws IOException If the image is empty or invalid, or for general
      *                     I/O errors.
      */
-    public List<Mat> createFeatureMats(
-        Mat srcImg,
-        Mat faceBoxes,
-        FaceRecognizerSF fr
-    ) {
+    public List<Mat> createFeatureMats(Mat srcImg, Mat faceBoxes) {
         Objects.requireNonNull(srcImg, "Source image Mat");
         Objects.requireNonNull(faceBoxes, "Face boxes Mat");
         List<Mat> featureMatList = new ArrayList<>();
         for (int i = 0; i < faceBoxes.rows(); ++i) {
-            featureMatList.add(
-                createFeatureMat(
-                    srcImg,
-                    faceBoxes.row(i),
-                    fr
-                )
-            );
+            featureMatList.add(createFeatureMat(srcImg, faceBoxes.row(i)));
         }
         return featureMatList;
     }
@@ -156,17 +148,12 @@ public class MatService {
      * @param srcImg Source image, typically the whole original image.
      * @param faceBox Mat with one face box determined from the YuNet face
      *                detection model.
-     * @param fr SFace face recognition model.
      * @return The feature Mat of the image.
      * @throws NullPointerException If any arguments are null.
      * @throws IllegalArgumentException If the provided face box Mat does not
      *                                  have only one row.
      */
-    public Mat createFeatureMat(
-        Mat srcImg,
-        Mat faceBox,
-        FaceRecognizerSF fr
-    ) {
+    public Mat createFeatureMat(Mat srcImg, Mat faceBox) {
         Objects.requireNonNull(srcImg, "Source image Mat");
         Objects.requireNonNull(faceBox, "Face box Mat");
         Objects.requireNonNull(fr, "Face recognition model");
@@ -188,10 +175,10 @@ public class MatService {
         }
         finally {
             if (alignedMat != null) {
-                alignedMat.deallocate();
+                alignedMat.close();
             }
             if (featureMat != null) {
-                featureMat.deallocate();
+                featureMat.close();
             }
         }
     }
