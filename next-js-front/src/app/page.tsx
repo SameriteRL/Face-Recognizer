@@ -19,8 +19,18 @@ export default function Home() {
   const [faceFile, setFaceFile] = useState(null);
   const [testFile, setTestFile] = useState(null);
   const [showError, setShowError] = useState(false);
-  const [imageSrc, setImageSrc] = useState("");
+  const [imageSrc, setImgSrc] = useState("");
+  const [imgType, setImgType] = useState("");
+  const [imgWidth, setImgWidth] = useState(0);
+  const [imgHeight, setImgHeight] = useState(0);
   const [formDisabled, setFormDisabled] = useState(false);
+
+  const clearImg = () => {
+    setImgSrc("");
+    setImgType("");
+    setImgWidth(0);
+    setImgHeight(0);
+  }
 
   const handleFaceFileChange = (e) => {
     setFaceFile(e.target.files[0]);
@@ -41,7 +51,9 @@ export default function Home() {
         "http://localhost:8080/submit",
         formData,
         {
-          headers: {"Content-Type": "multipart/form-data"},
+          headers: {
+            "Content-Type": "multipart/form-data"
+          },
           responseType: "json"
         }
       );
@@ -49,19 +61,22 @@ export default function Home() {
       try {
         const base64img = response.data.result;
         const imgUrl = `data:image/jpeg;base64,${base64img}`;
-        setImageSrc(imgUrl);
+        setImgSrc(imgUrl);
+        setImgType(response.data.type);
+        setImgWidth(response.data.width);
+        setImgHeight(response.data.height);
         console.log("Image rendered")
         setShowError(false);
       }
       catch (error) {
         console.log("Error rendering image", error);
-        setImageSrc("");
+        clearImg();
         setShowError(true);
       }
     }
     catch (error) {
       console.error("Error uploading file", error);
-      setImageSrc("");
+      clearImg();
       setShowError(true);
     }
     setFormDisabled(false);
@@ -74,14 +89,17 @@ export default function Home() {
         <input className="mb-7" type="file" accept="image/*" onChange={handleFaceFileChange} disabled={formDisabled} />
         <label className="text-2xl">Upload a test image less than 10MB</label>
         <input className="mb-7" type="file" accept="image/*" onChange={handleTestFileChange} disabled={formDisabled} />
-        <button className="bg-red-700 text-white font-bold mb-4 py-2 px-4 rounded hover:bg-red-800" onClick={handleSubmit}>Submit</button>
+        <button className="bg-red-700 text-white font-bold mb-4 py-2 px-4 rounded hover:bg-red-800" disabled={formDisabled} onClick={handleSubmit}>Submit</button>
       </form>
       {
         imageSrc ? (
-          <img src={imageSrc} width={500} height={500} />
+          <img className="mb-5" src={imageSrc} width={500} height={500} />
         ) : (
           showError ? errorMessage() : <p>Waiting for output...</p>)
       }
+      {imgType ? <p>Image type: {imgType}</p> : null}
+      {imgWidth ? <p>Width: {imgWidth} px</p> : null}
+      {imgHeight ? <p>Height: {imgHeight} px</p> : null}
     </div>
   );
 }
