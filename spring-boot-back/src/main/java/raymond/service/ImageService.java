@@ -16,11 +16,8 @@ import javax.imageio.ImageIO;
 
 import org.springframework.stereotype.Service;
 
-import com.drew.imaging.ImageMetadataReader;
-import com.drew.metadata.Metadata;
-import com.drew.metadata.exif.ExifIFD0Directory;
-
 import raymond.classes.FaceBox;
+import raymond.utils.MetadataUtils;
 import raymond.utils.StringUtils;
 
 @Service
@@ -79,19 +76,12 @@ public class ImageService {
         if (img == null) {
             throw new IOException("Stream could not be read as an image");
         }
-        int orientation = -1;
-        // Returns unmodified image if EXIF orientation cannot be determined
-        try {
-            Metadata metadata = ImageMetadataReader.readMetadata(imgFile);
-            ExifIFD0Directory exifIFD0 =
-                metadata.getFirstDirectoryOfType(ExifIFD0Directory.class);
-            orientation = exifIFD0.getInt(ExifIFD0Directory.TAG_ORIENTATION);
-        }
-        catch (Exception e) {
-            return img;
-        }
+        int orientation = MetadataUtils.getExifOrientation(imgPath);
         int rotateDegrees = -1;
         switch (orientation) {
+            // Orientation data doesn't exist or cannot be found
+            case -1:
+                return img;
             // Image is oriented normally
             case 1:
                 return img;
