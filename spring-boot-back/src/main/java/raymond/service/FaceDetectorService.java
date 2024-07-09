@@ -37,7 +37,47 @@ public class FaceDetectorService {
 
     /**
      * Allocates and returns a Mat representing face box data after performing
-     * face detection on an image. <p>
+     * face detection on an image. Can only detect faces between 10x10px and
+     * 300x300px in size, see {@link #detectFaces(Mat, FaceDetectorYN)} for a
+     * more flexible solution. <p>
+     * 
+     * The original Mat is not modified as a result of the operation; it is the
+     * responsibility of the caller to later deallocate it as well as the
+     * returned Mat. <p>
+     * 
+     * Note that not all image formats are supported; see {@link #FaceDetector}
+     * for details.
+     * 
+     * @param imgMat Image Mat to detect faces in.
+     * @param fd YuNet face detection model.
+     * @return See {@link #detectFaces(Mat, FaceDetectorYN)}
+     * @throws NullPointerException If any arguments are null.
+     * @throws IllegalArgumentException If the face detector or image is
+     *                                  invalid.
+     */
+    public Mat detectFacesRaw(Mat imgMat, FaceDetectorYN fd) {
+        Objects.requireNonNull(imgMat, "Image Mat");
+        Objects.requireNonNull(fd, "Face detector model");
+        if (imgMat.empty()) {
+            throw new IllegalArgumentException("Invalid image Mat");
+        }
+        if (fd.isNull()) {
+            throw new IllegalArgumentException("Face detector is null");
+        }
+        try (Size inputSize = new Size(imgMat.cols(), imgMat.rows())) {
+            fd.setInputSize(inputSize);
+        }
+        Mat detectResult = new Mat();
+        fd.detect(imgMat, detectResult);
+        return detectResult;
+    }
+
+    /**
+     * Allocates and returns a Mat representing face box data after performing
+     * face detection on an image. Performs multiple scans at different scales
+     * for maximum accuracy, which may result in overlapping bounding boxes.
+     * See {@link #detectFacesRaw(Mat, FaceDetectorYN)} for faster results at
+     * the cost of constrained input. <p>
      * 
      * It is the caller's responsibility to properly deallocate the
      * returned Mat. <p>
@@ -45,12 +85,12 @@ public class FaceDetectorService {
      * Note that not all image formats are supported; see {@link #FaceDetector}
      * for details.
      * 
-     * @param imgBytes Byte array of the image to detect faces from.
+     * @param imgBytes Byte array of the image to detect faces in.
      * @param fd YuNet face detection model.
-     * @return See {@link #detectFaces(Mat, String)}
+     * @return See {@link #detectFaces(Mat, FaceDetectorYN)}
      * @throws NullPointerException If any arguments are null.
-     * @throws IllegalArgumentException If the face detector path is invalid or
-     *                                  the image is empty or invalid.
+     * @throws IllegalArgumentException If the face detector or image is
+     *                                  invalid.
      * @throws IOException For general I/O errors.
      */
     public Mat detectFaces(
@@ -66,28 +106,29 @@ public class FaceDetectorService {
             return detectFaces(tempInputFile.getAbsolutePath(), fd);
         }
         finally {
-            if (tempInputFile != null) {
-                tempInputFile.delete();
-            }
+            tempInputFile.delete();
         }
     }
 
     /**
      * Allocates and returns a Mat representing face box data after performing
-     * face detection on an image. <p>
+     * face detection on an image. Performs multiple scans at different scales
+     * for maximum accuracy, which may result in overlapping bounding boxes.
+     * See {@link #detectFacesRaw(Mat, FaceDetectorYN)} for faster results at
+     * the cost of constrained input. <p>
      * 
-     * It is the caller's responsibility to properly deallocate the
-     * returned Mat. <p>
+     * It is the caller's responsibility to properly deallocate the returned
+     * Mat. <p>
      * 
      * Note that not all image formats are supported; see {@link #FaceDetector}
      * for details.
      * 
-     * @param imgPath Path of the image to detect faces from.
+     * @param imgPath Path of the image to detect faces in.
      * @param fd YuNet face detection model.
-     * @return See {@link #detectFaces(Mat, String)}
+     * @return See {@link #detectFaces(Mat, FaceDetectorYN)}
      * @throws NullPointerException If any arguments are null.
-     * @throws IllegalArgumentException If the face detector path is invalid or
-     *                                  the image is empty or invalid.
+     * @throws IllegalArgumentException If the face detector or image is
+     *                                  invalid.
      */
     public Mat detectFaces(String imgPath, FaceDetectorYN fd) {
         Objects.requireNonNull(imgPath, "Image path");
@@ -106,16 +147,19 @@ public class FaceDetectorService {
 
     /**
      * Allocates and returns a Mat representing face box data after performing
-     * face detection on an image. <p>
+     * face detection on an image. Performs multiple scans at different scales
+     * for maximum accuracy, which may result in overlapping bounding boxes.
+     * See {@link #detectFacesRaw(Mat, FaceDetectorYN)} for faster results at
+     * the cost of constrained input. <p>
      * 
-     * The original Mat is not modified or deallocated as a result of the
-     * operation; it is the responsibility of the caller to later deallocate it
-     * as well as the returned Mat. <p>
+     * The original Mat is not modified as a result of the operation; it is the
+     * responsibility of the caller to later deallocate it as well as the
+     * returned Mat. <p>
      * 
      * Note that not all image formats are supported; see {@link #FaceDetector}
      * for details.
      * 
-     * @param imgMat Image Mat to detect faces from.
+     * @param imgMat Image Mat to detect faces in.
      * @param fd YuNet face detection model.
      * @return A 2D Mat of shape [num_faces, 15]
      *         <ul>
@@ -129,8 +173,8 @@ public class FaceDetectorService {
      *           <li> 14:    face score
      *         </ul>
      * @throws NullPointerException If any arguments are null.
-     * @throws IllegalArgumentException If the face detector path is invalid or
-     *                                  the image is empty or invalid.
+     * @throws IllegalArgumentException If the face detector or image is
+     *                                  invalid.
      */
     public Mat detectFaces(Mat imgMat, FaceDetectorYN fd) {
         Objects.requireNonNull(imgMat, "Image Mat");
@@ -138,68 +182,66 @@ public class FaceDetectorService {
         if (imgMat.empty()) {
             throw new IllegalArgumentException("Invalid image Mat");
         }
+        if (fd.isNull()) {
+            throw new IllegalArgumentException("Face detector is null");
+        }
         Mat aggResult = new Mat(0, 15, 5),
-            tempImgMat = imgMat.clone(),
-            tempDetectResult = null,
-            tempConcatResult = null,
-            tempResizedImg = null;
-        double scaleFactor = 1.0;
+            tmpImg = null,
+            tmpConcatResult = null;
+        // I hate floating point errors
+        int scaleFactor = 10;
         do {
-            try {
-                try (Size inputSize =
-                        new Size(tempImgMat.cols(), tempImgMat.rows())
-                ) {
+            try (Mat tmpDetectRes = new Mat()) {
+                if (tmpImg != null) {
+                    tmpImg.close();
+                }
+                tmpImg = (scaleFactor != 10) ? 
+                            matService.resizeImg(imgMat, scaleFactor / 10.0)
+                            : imgMat.clone();
+                try (Size inputSize = new Size(tmpImg.cols(), tmpImg.rows())) {
                     fd.setInputSize(inputSize);
                 }
-                tempDetectResult = new Mat();
-                fd.detect(tempImgMat, tempDetectResult);
-                if (tempDetectResult.rows() > 0) {
+                fd.detect(tmpImg, tmpDetectRes);
+                if (tmpDetectRes.rows() > 0) {
+                    if (scaleFactor == 10) {
+                        continue;
+                    }
                     // Maps face detection results to original image
-                    if (scaleFactor != 1.0) {
-                        try (FloatRawIndexer indexer =
-                                tempDetectResult.createIndexer()
-                        ) {
-                            for (int i = 0; i < tempDetectResult.rows(); ++i) {
-                                for (int j = 0; j < 14; ++j) {
-                                    indexer.put(
-                                        i,
-                                        j,
-                                        Math.round(
-                                            indexer.get(i, j)
-                                            / scaleFactor
-                                        )
-                                    );
-                                }
+                    try (FloatRawIndexer indexer = tmpDetectRes.createIndexer()) {
+                        for (int i = 0; i < tmpDetectRes.rows(); ++i) {
+                            for (int j = 0; j < 14; ++j) {
+                                indexer.put(
+                                    i,
+                                    j,
+                                    Math.round(
+                                        indexer.get(i, j)
+                                        / (scaleFactor / 10.0)
+                                    )
+                                );
                             }
                         }
                     }
                     // Aggregates face detection results
-                    tempConcatResult = new Mat();
-                    vconcat(aggResult, tempDetectResult, tempConcatResult);
+                    tmpConcatResult = new Mat();
+                    vconcat(aggResult, tmpDetectRes, tmpConcatResult);
                     aggResult.close();
-                    aggResult = tempConcatResult;
+                    aggResult = tmpConcatResult;
                 }
-                scaleFactor -= 0.2;
-                tempResizedImg = matService.resizeImg(imgMat, scaleFactor);
             }
             catch (Exception e) {
+                if (tmpImg != null) {
+                    tmpImg.close();
+                }
                 if (aggResult != null) {
                     aggResult.close();
                 }
                 throw e;
             }
             finally {
-                if (tempDetectResult != null) {
-                    tempDetectResult.close();
-                }
-                if (tempImgMat != null) {
-                    tempImgMat.close();
-                }
-                tempImgMat = tempResizedImg;
+                scaleFactor -= 2;
             }
-        } while (imgMat.cols() > 300
-                    && imgMat.rows() > 300
-                    && scaleFactor > 0.3);
+        } while ((tmpImg.cols() > 300 || tmpImg.rows() > 300)
+                    && scaleFactor >= 2);
         return aggResult;
     }
 }
