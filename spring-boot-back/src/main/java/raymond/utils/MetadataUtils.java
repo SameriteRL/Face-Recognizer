@@ -27,11 +27,36 @@ import com.drew.metadata.png.PngDirectory;
 public class MetadataUtils {
 
     /**
+     * Gets EXIF orientation data from a media file's byte array.
+     * 
+     * @param mediaBytes Byte array of the media file.
+     * @return The EXIF orientation data tag value of the media, or {@code -1}
+     *         if it cannot be determined.
+     * @throws NullPointerException If the media byte array is null.
+     */
+    public static int getExifOrientation(byte[] mediaBytes) {
+        Objects.requireNonNull(mediaBytes, "Media byte array");
+        try (InputStream bais = new ByteArrayInputStream(mediaBytes)) {
+            Metadata md = ImageMetadataReader.readMetadata(bais);
+            Directory exifDir =
+                md.getFirstDirectoryOfType(ExifIFD0Directory.class);
+            if (exifDir == null) {
+                exifDir = md.getFirstDirectoryOfType(ExifSubIFDDirectory.class);
+            }
+            // Orientation tag code
+            return exifDir.getInt(274);
+        }
+        catch (IOException | ImageProcessingException | MetadataException exc) {
+            return -1;
+        }
+    }
+
+    /**
      * Gets EXIF orientation data from a media file.
      * 
      * @param mediaPath Path of the image file.
      * @return The EXIF orientation data tag value of the media, or {@code -1}
-     *         if it doesn't exist or can't be determined.
+     *         if it cannot be determined.
      * @throws NullPointerException If the media path is null.
      */
     public static int getExifOrientation(String mediaPath) {
@@ -54,7 +79,7 @@ public class MetadataUtils {
 
     /**
      * @param mediaBytes Byte array of the media file.
-     * @return The detected file type of the media file (e.g. JPEG, PNG), or
+     * @return The detected file type of the media file (e.g. JPEG, PNG).
      *         {@code null} if an error occurs during reading or if the type
      *         cannot be determined.
      * @throws NullPointerException If the media byte array is null.
@@ -73,7 +98,7 @@ public class MetadataUtils {
 
     /**
      * @param mediaPath Path of the media file.
-     * @return The detected file type of the media file (e.g. JPEG, PNG), or
+     * @return The detected file type of the media file (e.g. JPEG, PNG).
      *         {@code null} if an error occurs during reading or if the type
      *         cannot be determined.
      * @throws NullPointerException If the media path is null.
@@ -198,7 +223,7 @@ public class MetadataUtils {
      *         corresponding collections of tags as values. If metadata could
      *         not be read from the media, an empty immutable map is returned
      *         instead.
-     * @throws NullPointerException if the media path is null.
+     * @throws NullPointerException If the media path is null.
      */
     public static Map<String, Collection<Tag>> getMetadata(String mediaPath) {
         Objects.requireNonNull(mediaPath, "Media path");

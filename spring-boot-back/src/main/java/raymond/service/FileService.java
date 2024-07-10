@@ -32,7 +32,7 @@ public class FileService {
                 resourceLoader.getResource("classpath:" + resourcePath);
             return resource.getFile();
         }
-        catch (NullPointerException | IOException e) {
+        catch (NullPointerException | IOException exc) {
             return null;
         }
     }
@@ -53,7 +53,7 @@ public class FileService {
             }
             return false;
         }
-        catch (NullPointerException e) {
+        catch (NullPointerException exc) {
             return false;
         }
     }

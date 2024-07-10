@@ -56,11 +56,11 @@ public class MatService {
             resizedImg = new Mat(newSize, src.type());
             resize(src, resizedImg, newSize);
         }
-        catch (Exception e) {
+        catch (Exception exc) {
             if (resizedImg != null) {
                 resizedImg.close();
             }
-            throw e;
+            throw exc;
         }
         return resizedImg;
     }
@@ -100,11 +100,11 @@ public class MatService {
             resizedImg = new Mat(newSize, src.type());
             resize(src, resizedImg, newSize);
         }
-        catch (Exception e) {
+        catch (Exception exc) {
             if (resizedImg != null) {
                 resizedImg.close();
             }
-            throw e;
+            throw exc;
         }
         return resizedImg;
     }
@@ -156,30 +156,18 @@ public class MatService {
     public Mat createFeatureMat(Mat srcImg, Mat faceBox) {
         Objects.requireNonNull(srcImg, "Source image Mat");
         Objects.requireNonNull(faceBox, "Face box Mat");
-        Objects.requireNonNull(fr, "Face recognition model");
         if (srcImg.empty()) {
             throw new IllegalArgumentException("Source image Mat is empty");
         }
         if (faceBox.rows() != 1) {
             throw new IllegalArgumentException("Detect box may only have 1 row");
         }
-        Mat alignedMat = null, featureMat = null;
-        try {
-            alignedMat = new Mat();
-            featureMat = new Mat();
+        try (Mat alignedMat = new Mat(); Mat featureMat = new Mat()) {
             fr.alignCrop(srcImg, faceBox, alignedMat);
             fr.feature(alignedMat, featureMat);
             // Don't know why this has to be cloned, it just does
             Mat featureMatClone = featureMat.clone();
             return featureMatClone;
-        }
-        finally {
-            if (alignedMat != null) {
-                alignedMat.close();
-            }
-            if (featureMat != null) {
-                featureMat.close();
-            }
         }
     }
 }

@@ -66,7 +66,6 @@ public class FacePredictorService {
         Objects.requireNonNull(targetFaceBox, "Target image face boxes");
         Objects.requireNonNull(testImg, "Test image Mat");
         Objects.requireNonNull(testFaceBoxes, "Test image face boxes");
-        Objects.requireNonNull(fr, "Face recognizer model");
         if (targetFaceImg.empty()) {
             throw new IllegalArgumentException("Invalid target face image");
         }
@@ -79,12 +78,9 @@ public class FacePredictorService {
         if (testFaceBoxes.empty()) {
             throw new IllegalArgumentException("Invalid test face boxes");
         }
-        Mat targetFeature = null;
-        try {
-            targetFeature = matService.createFeatureMat(
-                targetFaceImg,
-                targetFaceBox
-            );
+        try (Mat targetFeature = matService.createFeatureMat(
+                targetFaceImg, targetFaceBox
+        )) {
             double maxScore = Double.MIN_VALUE;
             Mat testFeature = null, predictedFaceBox = null;
             for (int i = 0; i < testFaceBoxes.rows(); ++i) {
@@ -120,11 +116,6 @@ public class FacePredictorService {
             faceBox.predictScore = maxScore;
             return faceBox;
         }
-        finally {
-            if (targetFeature != null) {
-                targetFeature.close();
-            }
-        }
     }
 
     /**
@@ -155,7 +146,6 @@ public class FacePredictorService {
         Objects.requireNonNull(testImg, "Source image Mat");
         Objects.requireNonNull(testImgFaceBoxes, "Detect results Mat");
         Objects.requireNonNull(knownFaceFeatures, "Known face features map");
-        Objects.requireNonNull(fr, "Face recognizer model");
         if (testImg.empty()) {
             throw new IllegalArgumentException("Invalid test image");
         }
@@ -212,7 +202,6 @@ public class FacePredictorService {
     ) {
         Objects.requireNonNull(testFaces, "Test faces map");
         Objects.requireNonNull(knownFaceFeatures, "Known face features map");
-        Objects.requireNonNull(fr, "Face recognizer model");
         Map<String, FaceBox> bestMatches = new HashMap<>();
         for (Mat detectResult: testFaces.keySet()) {
             for (String subjName: knownFaceFeatures.keySet()) {

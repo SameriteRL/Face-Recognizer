@@ -70,11 +70,11 @@ public class FaceRecognizerFacade {
         MultipartFile testImg
     ) throws IOException {
         String testImgFormat =
-        StringUtils.getExtensionWithDot(testImg.getOriginalFilename());
+            StringUtils.getExtensionWithDot(testImg.getOriginalFilename());
         String faceImgFormat =
             StringUtils.getExtensionWithDot(faceImg.getOriginalFilename());
-        File tempTestImgFile = File.createTempFile("testImg", testImgFormat);
-        File tempFaceImgFile = File.createTempFile("faceImg", faceImgFormat);
+        File tempTestImgFile = File.createTempFile("tmpTestImg", testImgFormat);
+        File tempFaceImgFile = File.createTempFile("tmpFaceImg", faceImgFormat);
         try (FileOutputStream fos = new FileOutputStream(tempTestImgFile)) {
             fos.write(testImg.getBytes());
         }
@@ -86,8 +86,8 @@ public class FaceRecognizerFacade {
         Mat testImgFaceBoxes = null,
             faceImgFaceBoxes = null;
         try (FaceDetectorYN fd = fdFactory.getObject()) {
-            testImgFaceBoxes = fdService.detectFaces(testImgMat, fd);
-            faceImgFaceBoxes = fdService.detectFaces(faceImgMat, fd).row(0);
+            testImgFaceBoxes = fdService.detectMulti(testImgMat, fd);
+            faceImgFaceBoxes = fdService.detectMulti(faceImgMat, fd).row(0);
         }
         FaceBox predictedFaceBox = fpService.predictFace(
             faceImgMat,
@@ -158,7 +158,7 @@ public class FaceRecognizerFacade {
                 knownFaces.put(subDirName, featureMatList);
                 for (File imgFile: imgFileArr) {
                     imgMat = imread(imgFile.getAbsolutePath());
-                    detectResult = fdService.detectFaces(imgMat, fd);
+                    detectResult = fdService.detectMulti(imgMat, fd);
                     readImgs += detectResult.rows();
                     featureMatList.addAll(
                         matService.createFeatureMats(imgMat, detectResult)
@@ -169,7 +169,7 @@ public class FaceRecognizerFacade {
                 throw new RuntimeException("No valid faces were parsed");
             }
         }
-        catch (Exception e) {
+        catch (Exception exc) {
             for (List<Mat> matList: knownFaces.values()) {
                 for (Mat mat: matList) {
                     if (mat != null) {
@@ -177,7 +177,7 @@ public class FaceRecognizerFacade {
                     }
                 }
             }
-            throw e;
+            throw exc;
         }
         finally {
             if (imgMat != null) {

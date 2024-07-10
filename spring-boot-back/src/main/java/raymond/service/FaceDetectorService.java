@@ -36,26 +36,28 @@ public class FaceDetectorService {
     private MatService matService;
 
     /**
-     * Allocates and returns a Mat representing face box data after performing
-     * face detection on an image. Can only detect faces between 10x10px and
-     * 300x300px in size, see {@link #detectFaces(Mat, FaceDetectorYN)} for a
-     * more flexible solution. <p>
+     * Allocates and returns a Mat containing the results of face detection on
+     * an image, where each row represents a detected face. <p>
+     * 
+     * Can only detect faces between 10x10px and 300x300px in size; see
+     * {@link #detectMulti(Mat, FaceDetectorYN)} for a more flexible solution.
+     * <p>
      * 
      * The original Mat is not modified as a result of the operation; it is the
      * responsibility of the caller to later deallocate it as well as the
      * returned Mat. <p>
      * 
-     * Note that not all image formats are supported; see {@link #FaceDetector}
-     * for details.
+     * See {@link #FaceDetector} for a list of supported image formats.
      * 
-     * @param imgMat Image Mat to detect faces in.
+     * @param imgMat Image to perform face detection on.
      * @param fd YuNet face detection model.
-     * @return See {@link #detectFaces(Mat, FaceDetectorYN)}
+     * @return See {@link #detectMulti(Mat, FaceDetectorYN)}
      * @throws NullPointerException If any arguments are null.
      * @throws IllegalArgumentException If the face detector or image is
-     *                                  invalid.
+     *                                  invalid, or if the image is
+     *                                  unsupported.
      */
-    public Mat detectFacesRaw(Mat imgMat, FaceDetectorYN fd) {
+    public Mat detectMultiRaw(Mat imgMat, FaceDetectorYN fd) {
         Objects.requireNonNull(imgMat, "Image Mat");
         Objects.requireNonNull(fd, "Face detector model");
         if (imgMat.empty()) {
@@ -73,93 +75,93 @@ public class FaceDetectorService {
     }
 
     /**
-     * Allocates and returns a Mat representing face box data after performing
-     * face detection on an image. Performs multiple scans at different scales
-     * for maximum accuracy, which may result in overlapping bounding boxes.
-     * See {@link #detectFacesRaw(Mat, FaceDetectorYN)} for faster results at
-     * the cost of constrained input. <p>
+     * Allocates and returns a Mat containing the results of face detection on
+     * an image, where each row represents a detected face. This method
+     * performs multiple scans on the same image at various scales for maximum
+     * accuracy, which will likely create overlapping results. <p>
      * 
-     * It is the caller's responsibility to properly deallocate the
-     * returned Mat. <p>
+     * It is the caller's responsibility to later deallocate the returned Mat.
+     * <p>
      * 
-     * Note that not all image formats are supported; see {@link #FaceDetector}
-     * for details.
+     * See {@link #detectMultiRaw(Mat, FaceDetectorYN)} for faster face
+     * detection at the cost of constrained input. <p>
      * 
-     * @param imgBytes Byte array of the image to detect faces in.
+     * See {@link #FaceDetector} for a list of supported image formats.
+     * 
+     * @param imgBytes Byte array of the image to perform face detection on.
      * @param fd YuNet face detection model.
-     * @return See {@link #detectFaces(Mat, FaceDetectorYN)}
+     * @return See {@link #detectMulti(Mat, FaceDetectorYN)}
      * @throws NullPointerException If any arguments are null.
      * @throws IllegalArgumentException If the face detector or image is
-     *                                  invalid.
+     *                                  invalid, or if the image is
+     *                                  unsupported.
      * @throws IOException For general I/O errors.
      */
-    public Mat detectFaces(
-        byte[] imgBytes,
-        FaceDetectorYN fd
-    ) throws IOException {
+    public Mat detectMulti(byte[] imgBytes, FaceDetectorYN fd) throws IOException {
         Objects.requireNonNull(imgBytes, "Image byte array");
         Objects.requireNonNull(fd, "Face detector model");
-        File tempInputFile = File.createTempFile("inputImg", null);
-        try (OutputStream fileOutStream = new FileOutputStream(tempInputFile)) {
-            fileOutStream.write(imgBytes);
-            fileOutStream.flush();
-            return detectFaces(tempInputFile.getAbsolutePath(), fd);
-        }
-        finally {
-            tempInputFile.delete();
-        }
-    }
-
-    /**
-     * Allocates and returns a Mat representing face box data after performing
-     * face detection on an image. Performs multiple scans at different scales
-     * for maximum accuracy, which may result in overlapping bounding boxes.
-     * See {@link #detectFacesRaw(Mat, FaceDetectorYN)} for faster results at
-     * the cost of constrained input. <p>
-     * 
-     * It is the caller's responsibility to properly deallocate the returned
-     * Mat. <p>
-     * 
-     * Note that not all image formats are supported; see {@link #FaceDetector}
-     * for details.
-     * 
-     * @param imgPath Path of the image to detect faces in.
-     * @param fd YuNet face detection model.
-     * @return See {@link #detectFaces(Mat, FaceDetectorYN)}
-     * @throws NullPointerException If any arguments are null.
-     * @throws IllegalArgumentException If the face detector or image is
-     *                                  invalid.
-     */
-    public Mat detectFaces(String imgPath, FaceDetectorYN fd) {
-        Objects.requireNonNull(imgPath, "Image path");
-        Objects.requireNonNull(fd, "Face detector model");
-        Mat imgMat = null;
+        File tempInputFile = null;
         try {
-            imgMat = imread(imgPath);
-            return detectFaces(imgMat, fd);
+            tempInputFile = File.createTempFile("tmpBytesToImg", null);
+            try (OutputStream fileOutStream = new FileOutputStream(tempInputFile)) {
+                fileOutStream.write(imgBytes);
+                fileOutStream.flush();
+                return detectMulti(tempInputFile.getAbsolutePath(), fd);
+            }
         }
         finally {
-            if (imgMat != null) {
-                imgMat.close();
+            if (tempInputFile != null) {
+                tempInputFile.delete();
             }
         }
     }
 
     /**
-     * Allocates and returns a Mat representing face box data after performing
-     * face detection on an image. Performs multiple scans at different scales
-     * for maximum accuracy, which may result in overlapping bounding boxes.
-     * See {@link #detectFacesRaw(Mat, FaceDetectorYN)} for faster results at
-     * the cost of constrained input. <p>
+     * Allocates and returns a Mat containing the results of face detection on
+     * an image, where each row represents a detected face. This method
+     * performs multiple scans on the same image at various scales for maximum
+     * accuracy, which will likely create overlapping results. <p>
+     * 
+     * It is the caller's responsibility to later deallocate the returned Mat.
+     * <p>
+     * 
+     * See {@link #detectMultiRaw(Mat, FaceDetectorYN)} for faster face
+     * detection at the cost of constrained input. <p>
+     * 
+     * See {@link #FaceDetector} for a list of supported image formats.
+     * 
+     * @param imgPath Path of the image to perform face detection on.
+     * @param fd YuNet face detection model.
+     * @return See {@link #detectMulti(Mat, FaceDetectorYN)}
+     * @throws NullPointerException If any arguments are null.
+     * @throws IllegalArgumentException If the face detector or image is
+     *                                  invalid, or if the image is
+     *                                  unsupported.
+     */
+    public Mat detectMulti(String imgPath, FaceDetectorYN fd) {
+        Objects.requireNonNull(imgPath, "Image path");
+        Objects.requireNonNull(fd, "Face detector model");
+        try (Mat imgMat = imread(imgPath)) {
+            return detectMulti(imgMat, fd);
+        }
+    }
+
+    /**
+     * Allocates and returns a Mat containing the results of face detection on
+     * an image, where each row represents a detected face. This method
+     * performs multiple scans on the same image at various scales for maximum
+     * accuracy, which will likely create overlapping results. <p>
      * 
      * The original Mat is not modified as a result of the operation; it is the
      * responsibility of the caller to later deallocate it as well as the
      * returned Mat. <p>
      * 
-     * Note that not all image formats are supported; see {@link #FaceDetector}
-     * for details.
+     * See {@link #detectMultiRaw(Mat, FaceDetectorYN)} for faster face
+     * detection at the cost of constrained input. <p>
      * 
-     * @param imgMat Image Mat to detect faces in.
+     * See {@link #FaceDetector} for a list of supported image formats.
+     * 
+     * @param imgMat Image to perform face detection on.
      * @param fd YuNet face detection model.
      * @return A 2D Mat of shape [num_faces, 15]
      *         <ul>
@@ -174,9 +176,10 @@ public class FaceDetectorService {
      *         </ul>
      * @throws NullPointerException If any arguments are null.
      * @throws IllegalArgumentException If the face detector or image is
-     *                                  invalid.
+     *                                  invalid, or if the image is
+     *                                  unsupported.
      */
-    public Mat detectFaces(Mat imgMat, FaceDetectorYN fd) {
+    public Mat detectMulti(Mat imgMat, FaceDetectorYN fd) {
         Objects.requireNonNull(imgMat, "Image Mat");
         Objects.requireNonNull(fd, "Face detector model");
         if (imgMat.empty()) {
@@ -228,14 +231,14 @@ public class FaceDetectorService {
                     aggResult = tmpConcatResult;
                 }
             }
-            catch (Exception e) {
+            catch (Exception exc) {
                 if (tmpImg != null) {
                     tmpImg.close();
                 }
                 if (aggResult != null) {
                     aggResult.close();
                 }
-                throw e;
+                throw exc;
             }
             finally {
                 scaleFactor -= 2;
